@@ -6,7 +6,10 @@ export interface Sign {
 // Alfabeto manual da Libras — descrição de como configurar a mão.
 export const alphabet: Sign[] = [
   { letter: "A", description: "Mão fechada em punho, com o polegar ao lado dos dedos." },
-  { letter: "B", description: "Mão aberta, dedos estendidos e juntos, polegar dobrado sobre a palma." },
+  {
+    letter: "B",
+    description: "Mão aberta, dedos estendidos e juntos, polegar dobrado sobre a palma.",
+  },
   { letter: "C", description: "Mão curvada formando a letra C." },
   { letter: "D", description: "Indicador apontando para cima, demais dedos tocando o polegar." },
   { letter: "E", description: "Dedos dobrados sobre a palma, pontas tocando o polegar." },

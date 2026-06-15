@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff, Hand, Loader2, AlertTriangle } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,11 @@ export const Route = createFileRoute("/praticar")({
   head: () => ({
     meta: [
       { title: "Praticar com a câmera — Mãos que Falam" },
-      { name: "description", content: "Área livre de prática: ative a câmera e veja o reconhecimento de mãos em tempo real para treinar sinais de Libras." },
+      {
+        name: "description",
+        content:
+          "Área livre de prática: ative a câmera e veja o reconhecimento de mãos em tempo real para treinar sinais de Libras.",
+      },
       { property: "og:title", content: "Praticar Libras com a câmera" },
       { property: "og:description", content: "Reconhecimento de mãos em tempo real no navegador." },
     ],
@@ -17,15 +21,32 @@ export const Route = createFileRoute("/praticar")({
 });
 
 const HAND_CONNECTIONS: [number, number][] = [
-  [0, 1], [1, 2], [2, 3], [3, 4],
-  [0, 5], [5, 6], [6, 7], [7, 8],
-  [5, 9], [9, 10], [10, 11], [11, 12],
-  [9, 13], [13, 14], [14, 15], [15, 16],
-  [13, 17], [17, 18], [18, 19], [19, 20],
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  [5, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  [9, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  [13, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20],
   [0, 17],
 ];
 
 type Landmark = { x: number; y: number; z: number };
+type Vision = typeof import("@mediapipe/tasks-vision");
+type HandLandmarker = Awaited<ReturnType<Vision["HandLandmarker"]["createFromOptions"]>>;
 
 function countFingers(lm: Landmark[]): number {
   let count = 0;
@@ -44,26 +65,40 @@ function PraticarPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
-  const landmarkerRef = useRef<any>(null);
+  const landmarkerRef = useRef<HandLandmarker | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
   const [error, setError] = useState<string>("");
   const [handsCount, setHandsCount] = useState(0);
   const [fingers, setFingers] = useState<number | null>(null);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
 
-  const stop = () => {
+  const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    const ctx = canvasRef.current?.getContext("2d");
+    if (ctx && canvasRef.current)
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  }, []);
+
+  const stop = useCallback(() => {
+    stopCamera();
     setStatus("idle");
     setHandsCount(0);
     setFingers(null);
-    const ctx = canvasRef.current?.getContext("2d");
-    if (ctx && canvasRef.current) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-  };
+  }, [stopCamera]);
 
-  useEffect(() => () => stop(), []);
+  useEffect(() => () => stop(), [stop]);
+
+  useEffect(() => {
+    navigator.mediaDevices
+      ?.enumerateDevices()
+      .then((items) => setDevices(items.filter((d) => d.kind === "videoinput")))
+      .catch(() => setDevices([]));
+  }, [status]);
 
   const start = async () => {
     setStatus("loading");
@@ -77,14 +112,18 @@ function PraticarPage() {
         baseOptions: {
           modelAssetPath:
             "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU",
         },
         runningMode: "VIDEO",
         numHands: 2,
       });
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30, max: 30 },
+        },
         audio: false,
       });
       streamRef.current = stream;
@@ -93,15 +132,15 @@ function PraticarPage() {
       await video.play();
       setStatus("running");
       loop();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       setError(
-        e?.name === "NotAllowedError"
+        e instanceof DOMException && e.name === "NotAllowedError"
           ? "Permissão de câmera negada. Habilite o acesso à câmera e tente novamente."
           : "Não foi possível iniciar a câmera ou o modelo. Verifique sua conexão e permissões.",
       );
       setStatus("error");
-      stop();
+      stopCamera();
     }
   };
 
@@ -153,9 +192,27 @@ function PraticarPage() {
           Reconhecimento de mãos pela câmera
         </h1>
         <p className="mt-2 max-w-xl text-muted-foreground">
-          Ative sua webcam para acompanhar os pontos da mão em tempo real. Tudo roda no seu navegador —
-          nenhuma imagem é enviada para servidores.
+          Ative sua webcam para acompanhar os pontos da mão em tempo real. Tudo roda no seu
+          navegador — nenhuma imagem é enviada para servidores.
         </p>
+
+        {devices.length > 0 && status !== "running" && (
+          <label className="mt-5 block max-w-md text-sm font-medium text-foreground">
+            Câmera
+            <select
+              value={deviceId}
+              onChange={(e) => setDeviceId(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Padrão do navegador</option>
+              {devices.map((device, index) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Câmera ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="mt-8 overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
           <div className="relative aspect-video bg-muted">
@@ -175,13 +232,17 @@ function PraticarPage() {
                 {status === "loading" ? (
                   <>
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    <p className="text-sm font-medium text-foreground">Carregando modelo de detecção…</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Carregando modelo de detecção…
+                    </p>
                   </>
                 ) : status === "error" ? (
                   <>
                     <AlertTriangle className="h-10 w-10 text-destructive" />
                     <p className="max-w-sm text-sm text-foreground">{error}</p>
-                    <Button variant="hero" onClick={start}>Tentar novamente</Button>
+                    <Button variant="hero" onClick={start}>
+                      Tentar novamente
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -208,7 +269,9 @@ function PraticarPage() {
                   <p className="text-2xl font-bold text-foreground">{handsCount}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Dedos levantados</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Dedos levantados
+                  </p>
                   <p className="text-2xl font-bold text-primary">{fingers ?? "—"}</p>
                 </div>
               </div>
@@ -220,9 +283,9 @@ function PraticarPage() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-secondary/40 p-5 text-sm text-muted-foreground">
-          <strong className="text-foreground">Área de integração:</strong> os 21 pontos de cada mão estão
-          disponíveis em tempo real. Você pode evoluir esta área conectando um classificador de sinais
-          para reconhecer letras e palavras completas da Libras.
+          <strong className="text-foreground">Área de integração:</strong> os 21 pontos de cada mão
+          estão disponíveis em tempo real. Você pode evoluir esta área conectando um classificador
+          de sinais para reconhecer letras e sinais básicos de Libras.
         </div>
       </main>
     </div>

@@ -8,18 +8,37 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Mãos que Falam — Aprenda Libras com a câmera" },
-      { name: "description", content: "Aplicação educacional para aprender Libras: alfabeto manual, lições interativas e prática livre com reconhecimento de sinais pela câmera." },
+      {
+        name: "description",
+        content:
+          "Aplicação educacional para aprender Libras: alfabeto manual, lições interativas e prática livre com reconhecimento de sinais pela câmera.",
+      },
       { property: "og:title", content: "Mãos que Falam — Aprenda Libras" },
-      { property: "og:description", content: "Aprenda o alfabeto em Libras e pratique com reconhecimento de mãos pela câmera." },
+      {
+        property: "og:description",
+        content: "Aprenda o alfabeto em Libras e pratique com reconhecimento de mãos pela câmera.",
+      },
     ],
   }),
   component: Index,
 });
 
 const features = [
-  { icon: BookOpen, title: "Alfabeto manual", text: "Aprenda cada letra e número da datilologia com descrições claras." },
-  { icon: Camera, title: "Prática com câmera", text: "Área livre que usa sua webcam para detectar e acompanhar as mãos em tempo real." },
-  { icon: Sparkles, title: "No seu ritmo", text: "Conteúdo organizado e acessível para começar do zero." },
+  {
+    icon: BookOpen,
+    title: "Alfabeto manual",
+    text: "Aprenda cada letra e número da datilologia com descrições claras.",
+  },
+  {
+    icon: Camera,
+    title: "Prática com câmera",
+    text: "Área livre que usa sua webcam para detectar e acompanhar as mãos em tempo real.",
+  },
+  {
+    icon: Sparkles,
+    title: "No seu ritmo",
+    text: "Conteúdo organizado e acessível para começar do zero.",
+  },
 ];
 
 function Index() {
@@ -37,12 +56,14 @@ function Index() {
               Aprenda <span className="text-primary">Libras</span> usando suas próprias mãos
             </h1>
             <p className="mt-5 max-w-md text-lg text-muted-foreground">
-              Estude o alfabeto manual, pratique cada sinal e receba feedback em tempo real
-              com o reconhecimento de mãos pela câmera.
+              Estude o alfabeto manual, pratique cada sinal e acompanhe os pontos das mãos em tempo
+              real pela câmera.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild variant="hero" size="xl">
-                <Link to="/praticar">Praticar com a câmera <ArrowRight className="h-4 w-4" /></Link>
+                <Link to="/praticar">
+                  Praticar com a câmera <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild variant="outline" size="xl">
                 <Link to="/aprender">Ver o alfabeto</Link>
@@ -67,7 +88,10 @@ function Index() {
         </h2>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {features.map((f) => (
-            <div key={f.title} className="rounded-2xl border border-border bg-card p-7 shadow-soft transition-transform hover:-translate-y-1">
+            <div
+              key={f.title}
+              className="rounded-2xl border border-border bg-card p-7 shadow-soft transition-transform hover:-translate-y-1"
+            >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-primary">
                 <f.icon className="h-6 w-6" />
               </span>
@@ -85,7 +109,9 @@ function Index() {
             Ative sua câmera e veja a tecnologia acompanhar cada movimento das suas mãos.
           </p>
           <Button asChild variant="warm" size="xl" className="mt-7">
-            <Link to="/praticar">Abrir prática livre <Camera className="h-4 w-4" /></Link>
+            <Link to="/praticar">
+              Abrir prática livre <Camera className="h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </section>

@@ -15,9 +15,7 @@ export function Header() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-soft">
             <Hand className="h-5 w-5" />
           </span>
-          <span className="text-lg font-bold tracking-tight text-foreground">
-            Mãos que Falam
-          </span>
+          <span className="text-lg font-bold tracking-tight text-foreground">Mãos que Falam</span>
         </Link>
         <nav className="flex items-center gap-1">
           {links.map((l) => (
@@ -25,7 +23,9 @@ export function Header() {
               key={l.to}
               to={l.to}
               className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              activeProps={{ className: "rounded-lg px-3 py-2 text-sm font-medium bg-secondary text-primary" }}
+              activeProps={{
+                className: "rounded-lg px-3 py-2 text-sm font-medium bg-secondary text-primary",
+              }}
               activeOptions={{ exact: l.to === "/" }}
             >
               {l.label}

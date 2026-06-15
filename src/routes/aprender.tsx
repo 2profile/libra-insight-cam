@@ -8,20 +8,36 @@ export const Route = createFileRoute("/aprender")({
   head: () => ({
     meta: [
       { title: "Aprender o alfabeto em Libras — Mãos que Falam" },
-      { name: "description", content: "Conheça o alfabeto manual e os números em Libras com descrições de como configurar cada sinal." },
+      {
+        name: "description",
+        content:
+          "Conheça o alfabeto manual e os números em Libras com descrições de como configurar cada sinal.",
+      },
       { property: "og:title", content: "Aprender o alfabeto em Libras" },
-      { property: "og:description", content: "Datilologia: letras e números da Língua Brasileira de Sinais." },
+      {
+        property: "og:description",
+        content: "Datilologia: letras e números da Língua Brasileira de Sinais.",
+      },
     ],
   }),
   component: AprenderPage,
 });
 
-function SignGrid({ signs, onSelect, selected }: { signs: Sign[]; onSelect: (s: Sign) => void; selected: Sign | null }) {
+function SignGrid({
+  signs,
+  onSelect,
+  selected,
+}: {
+  signs: Sign[];
+  onSelect: (s: Sign) => void;
+  selected: Sign | null;
+}) {
   return (
     <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
       {signs.map((s) => (
         <button
           key={s.letter}
+          aria-label={`Ver sinal ${s.letter}`}
           onClick={() => onSelect(s)}
           className={`aspect-square rounded-2xl border text-2xl font-bold transition-all hover:-translate-y-1 hover:shadow-soft ${
             selected?.letter === s.letter
@@ -47,7 +63,8 @@ function AprenderPage() {
           Alfabeto manual
         </h1>
         <p className="mt-2 max-w-xl text-muted-foreground">
-          Toque em uma letra ou número para ver como configurar a mão. Depois, treine na aba de prática.
+          Toque em uma letra ou número para ver como configurar a mão. Depois, treine na aba de
+          prática.
         </p>
 
         <div className="mt-8 grid gap-8 md:grid-cols-[1fr_320px]">
