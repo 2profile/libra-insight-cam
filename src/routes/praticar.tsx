@@ -47,6 +47,112 @@ const HAND_CONNECTIONS: [number, number][] = [
 type Landmark = { x: number; y: number; z: number };
 type Vision = typeof import("@mediapipe/tasks-vision");
 type HandLandmarker = Awaited<ReturnType<Vision["HandLandmarker"]["createFromOptions"]>>;
+type FingerState = {
+  thumb: boolean;
+  index: boolean;
+  middle: boolean;
+  ring: boolean;
+  pinky: boolean;
+};
+type LandmarkModel = {
+  kind: string;
+  labels: string[];
+  centroids: Record<string, number[]>;
+  metrics?: {
+    testAccuracy?: number;
+  };
+};
+type ModelPrediction = {
+  label: string;
+  confidence: number;
+};
+
+const LETTER_GUIDE: Array<{
+  letter: string;
+  hint: string;
+  fingers: [boolean, boolean, boolean, boolean, boolean];
+}> = [
+  { letter: "A", hint: "Punho fechado", fingers: [false, false, false, false, false] },
+  { letter: "B", hint: "Quatro dedos abertos", fingers: [false, true, true, true, true] },
+  { letter: "I", hint: "Mindinho aberto", fingers: [false, false, false, false, true] },
+  { letter: "L", hint: "Polegar e indicador", fingers: [true, true, false, false, false] },
+  { letter: "V", hint: "Indicador e médio", fingers: [false, true, true, false, false] },
+  { letter: "W", hint: "Três dedos abertos", fingers: [false, true, true, true, false] },
+  { letter: "Y", hint: "Polegar e mindinho", fingers: [true, false, false, false, true] },
+];
+function distance(a: Landmark, b: Landmark): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function normalizeLandmarks(landmarks: Landmark[]): number[] {
+  const wrist = landmarks[0];
+  const scale = Math.max(distance(landmarks[5], landmarks[17]), 0.0001);
+  return landmarks.flatMap((point) => [
+    (point.x - wrist.x) / scale,
+    (point.y - wrist.y) / scale,
+    (point.z - wrist.z) / scale,
+  ]);
+}
+
+function squaredDistance(a: number[], b: number[]): number {
+  return a.reduce((sum, value, index) => sum + (value - b[index]) ** 2, 0);
+}
+
+function predictWithModel(model: LandmarkModel, landmarks: Landmark[]): ModelPrediction | null {
+  const features = normalizeLandmarks(landmarks);
+  const scores = model.labels
+    .map((label) => ({
+      label,
+      distance: squaredDistance(features, model.centroids[label]),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  if (!scores.length) return null;
+  const best = scores[0];
+  const second = scores[1];
+  const confidence = second ? second.distance / (best.distance + second.distance) : 1;
+  return { label: best.label, confidence: Math.max(0, Math.min(1, confidence)) };
+}
+
+function getFingerState(lm: Landmark[]): FingerState {
+  const palmWidth = distance(lm[5], lm[17]);
+  const isUp = (tip: number, pip: number) => lm[tip].y < lm[pip].y - palmWidth * 0.08;
+
+  return {
+    thumb: Math.abs(lm[4].x - lm[2].x) > palmWidth * 0.55,
+    index: isUp(8, 6),
+    middle: isUp(12, 10),
+    ring: isUp(16, 14),
+    pinky: isUp(20, 18),
+  };
+}
+
+function classifyLetter(lm: Landmark[]): string | null {
+  const f = getFingerState(lm);
+
+  if (!f.index && !f.middle && !f.ring && !f.pinky) return "A";
+  if (f.index && f.middle && f.ring && f.pinky) return "B";
+  if (!f.thumb && !f.index && !f.middle && !f.ring && f.pinky) return "I";
+  if (f.thumb && f.index && !f.middle && !f.ring && !f.pinky) return "L";
+  if (f.index && f.middle && !f.ring && !f.pinky) return "V";
+  if (f.index && f.middle && f.ring && !f.pinky) return "W";
+  if (f.thumb && !f.index && !f.middle && !f.ring && f.pinky) return "Y";
+
+  return null;
+}
+
+function MiniHand({ fingers }: { fingers: [boolean, boolean, boolean, boolean, boolean] }) {
+  return (
+    <div className="flex h-14 items-end justify-center gap-1 rounded-xl bg-secondary/70 px-3 py-2">
+      {fingers.map((open, index) => (
+        <span
+          key={index}
+          className={`w-2 rounded-full ${open ? "h-10 bg-primary" : "h-4 bg-muted-foreground/35"}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 function countFingers(lm: Landmark[]): number {
   let count = 0;
@@ -72,6 +178,9 @@ function PraticarPage() {
   const [error, setError] = useState<string>("");
   const [handsCount, setHandsCount] = useState(0);
   const [fingers, setFingers] = useState<number | null>(null);
+  const [letter, setLetter] = useState<string | null>(null);
+  const [model, setModel] = useState<LandmarkModel | null>(null);
+  const [modelConfidence, setModelConfidence] = useState<number | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState("");
 
@@ -89,6 +198,8 @@ function PraticarPage() {
     setStatus("idle");
     setHandsCount(0);
     setFingers(null);
+    setLetter(null);
+    setModelConfidence(null);
   }, [stopCamera]);
 
   useEffect(() => () => stop(), [stop]);
@@ -100,10 +211,24 @@ function PraticarPage() {
       .catch(() => setDevices([]));
   }, [status]);
 
+  useEffect(() => {
+    fetch("/models/landmark-centroids.json")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setModel(data))
+      .catch(() => setModel(null));
+  }, []);
+
   const start = async () => {
     setStatus("loading");
     setError("");
     try {
+      if (!window.isSecureContext) {
+        throw new Error("insecure-context");
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("camera-unavailable");
+      }
+
       const vision = await import("@mediapipe/tasks-vision");
       const fileset = await vision.FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
@@ -135,9 +260,11 @@ function PraticarPage() {
     } catch (e: unknown) {
       console.error(e);
       setError(
-        e instanceof DOMException && e.name === "NotAllowedError"
-          ? "Permissão de câmera negada. Habilite o acesso à câmera e tente novamente."
-          : "Não foi possível iniciar a câmera ou o modelo. Verifique sua conexão e permissões.",
+        e instanceof Error && e.message === "insecure-context"
+          ? "No celular, a câmera só funciona em HTTPS. Acesse por um link HTTPS ou publique a aplicação."
+          : e instanceof DOMException && e.name === "NotAllowedError"
+            ? "Permissão de câmera negada. Habilite o acesso à câmera e tente novamente."
+            : "Não foi possível iniciar a câmera ou o modelo. Verifique sua conexão e permissões.",
       );
       setStatus("error");
       stopCamera();
@@ -160,6 +287,14 @@ function PraticarPage() {
       const hands = result.landmarks ?? [];
       setHandsCount(hands.length);
       setFingers(hands.length ? countFingers(hands[0]) : null);
+      if (hands.length) {
+        const prediction = model ? predictWithModel(model, hands[0]) : null;
+        setLetter(prediction?.label ?? classifyLetter(hands[0]));
+        setModelConfidence(prediction?.confidence ?? null);
+      } else {
+        setLetter(null);
+        setModelConfidence(null);
+      }
 
       for (const lm of hands) {
         ctx.strokeStyle = "rgba(255,255,255,0.85)";
@@ -214,78 +349,119 @@ function PraticarPage() {
           </label>
         )}
 
-        <div className="mt-8 overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
-          <div className="relative aspect-video bg-muted">
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-            />
+        <div className="mt-8 grid gap-5 lg:grid-cols-[1fr_260px]">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
+            <div className="relative aspect-video bg-muted">
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+              />
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+              />
 
-            {status !== "running" && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-hero p-6 text-center">
-                {status === "loading" ? (
-                  <>
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    <p className="text-sm font-medium text-foreground">
-                      Carregando modelo de detecção…
+              {status !== "running" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-hero p-6 text-center">
+                  {status === "loading" ? (
+                    <>
+                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                      <p className="text-sm font-medium text-foreground">
+                        Carregando modelo de detecção…
+                      </p>
+                    </>
+                  ) : status === "error" ? (
+                    <>
+                      <AlertTriangle className="h-10 w-10 text-destructive" />
+                      <p className="max-w-sm text-sm text-foreground">{error}</p>
+                      <Button variant="hero" onClick={start}>
+                        Tentar novamente
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card text-primary shadow-soft">
+                        <Camera className="h-8 w-8" />
+                      </span>
+                      <p className="max-w-sm text-sm text-muted-foreground">
+                        Clique para ativar a câmera e começar a detecção das mãos.
+                      </p>
+                      <Button variant="hero" size="lg" onClick={start}>
+                        <Camera className="h-4 w-4" /> Ativar câmera
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {status === "running" && (
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border p-5">
+                <div className="flex gap-6">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Mãos</p>
+                    <p className="text-2xl font-bold text-foreground">{handsCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Dedos levantados
                     </p>
-                  </>
-                ) : status === "error" ? (
-                  <>
-                    <AlertTriangle className="h-10 w-10 text-destructive" />
-                    <p className="max-w-sm text-sm text-foreground">{error}</p>
-                    <Button variant="hero" onClick={start}>
-                      Tentar novamente
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card text-primary shadow-soft">
-                      <Camera className="h-8 w-8" />
-                    </span>
-                    <p className="max-w-sm text-sm text-muted-foreground">
-                      Clique para ativar a câmera e começar a detecção das mãos.
+                    <p className="text-2xl font-bold text-primary">{fingers ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Letra</p>
+                    <p className="text-2xl font-bold text-primary">{letter ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Confiança
                     </p>
-                    <Button variant="hero" size="lg" onClick={start}>
-                      <Camera className="h-4 w-4" /> Ativar câmera
-                    </Button>
-                  </>
-                )}
+                    <p className="text-2xl font-bold text-foreground">
+                      {modelConfidence == null ? "—" : `${Math.round(modelConfidence * 100)}%`}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" onClick={stop}>
+                  <CameraOff className="h-4 w-4" /> Parar
+                </Button>
               </div>
             )}
           </div>
 
-          {status === "running" && (
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border p-5">
-              <div className="flex gap-6">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Mãos</p>
-                  <p className="text-2xl font-bold text-foreground">{handsCount}</p>
+          <aside className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+            <h2 className="text-sm font-semibold text-foreground">Guia de teste</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {model
+                ? `Modelo treinado: ${model.labels.join(", ")}`
+                : "Heurística simples: posição dos dedos."}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-1">
+              {LETTER_GUIDE.map((item) => (
+                <div
+                  key={item.letter}
+                  className={`rounded-2xl border p-3 ${
+                    letter === item.letter ? "border-primary bg-secondary" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-2xl font-extrabold text-foreground">{item.letter}</p>
+                      <p className="text-xs text-muted-foreground">{item.hint}</p>
+                    </div>
+                    <MiniHand fingers={item.fingers} />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Dedos levantados
-                  </p>
-                  <p className="text-2xl font-bold text-primary">{fingers ?? "—"}</p>
-                </div>
-              </div>
-              <Button variant="outline" onClick={stop}>
-                <CameraOff className="h-4 w-4" /> Parar
-              </Button>
+              ))}
             </div>
-          )}
+          </aside>
         </div>
 
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-secondary/40 p-5 text-sm text-muted-foreground">
           <strong className="text-foreground">Área de integração:</strong> os 21 pontos de cada mão
-          estão disponíveis em tempo real. Você pode evoluir esta área conectando um classificador
-          de sinais para reconhecer letras e sinais básicos de Libras.
+          estão disponíveis em tempo real. Esta versão usa modelo treinado quando disponível e
+          mantém heurística como fallback.
         </div>
       </main>
     </div>

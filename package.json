@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:spa": "vite build --config vite.spa.config.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "train:landmarks": "node scripts/train-landmarks.mjs",
+    "validate:landmarks": "node scripts/validate-landmarks.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

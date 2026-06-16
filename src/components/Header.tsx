@@ -5,6 +5,7 @@ const links = [
   { to: "/", label: "Início" },
   { to: "/aprender", label: "Aprender" },
   { to: "/praticar", label: "Praticar" },
+  { to: "/coletar", label: "Coletar" },
 ] as const;
 
 export function Header() {

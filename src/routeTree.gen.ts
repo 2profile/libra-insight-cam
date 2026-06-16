@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as PraticarRouteImport } from './routes/praticar'
+import { Route as ColetarRouteImport } from './routes/coletar'
 import { Route as AprenderRouteImport } from './routes/aprender'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const PraticarRoute = PraticarRouteImport.update({
   id: '/praticar',
   path: '/praticar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ColetarRoute = ColetarRouteImport.update({
+  id: '/coletar',
+  path: '/coletar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AprenderRoute = AprenderRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/aprender': typeof AprenderRoute
+  '/coletar': typeof ColetarRoute
   '/praticar': typeof PraticarRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/aprender': typeof AprenderRoute
+  '/coletar': typeof ColetarRoute
   '/praticar': typeof PraticarRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/aprender': typeof AprenderRoute
+  '/coletar': typeof ColetarRoute
   '/praticar': typeof PraticarRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/aprender' | '/praticar' | '/sitemap.xml'
+  fullPaths: '/' | '/aprender' | '/coletar' | '/praticar' | '/sitemap.xml'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/aprender' | '/praticar' | '/sitemap.xml'
-  id: '__root__' | '/' | '/aprender' | '/praticar' | '/sitemap.xml'
+  to: '/' | '/aprender' | '/coletar' | '/praticar' | '/sitemap.xml'
+  id: '__root__' | '/' | '/aprender' | '/coletar' | '/praticar' | '/sitemap.xml'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AprenderRoute: typeof AprenderRoute
+  ColetarRoute: typeof ColetarRoute
   PraticarRoute: typeof PraticarRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/praticar'
       fullPath: '/praticar'
       preLoaderRoute: typeof PraticarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coletar': {
+      id: '/coletar'
+      path: '/coletar'
+      fullPath: '/coletar'
+      preLoaderRoute: typeof ColetarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/aprender': {
@@ -105,19 +122,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AprenderRoute: AprenderRoute,
+  ColetarRoute: ColetarRoute,
   PraticarRoute: PraticarRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
