@@ -57,7 +57,12 @@ type FingerState = {
 type LandmarkModel = {
   kind: string;
   labels: string[];
-  centroids: Record<string, number[]>;
+  k?: number;
+  centroids?: Record<string, number[]>;
+  prototypes?: Array<{
+    label: string;
+    features: number[];
+  }>;
   metrics?: {
     testAccuracy?: number;
   };
@@ -76,6 +81,7 @@ const LETTER_GUIDE: Array<{
   { letter: "B", hint: "Quatro dedos abertos", fingers: [false, true, true, true, true] },
   { letter: "I", hint: "Mindinho aberto", fingers: [false, false, false, false, true] },
   { letter: "L", hint: "Polegar e indicador", fingers: [true, true, false, false, false] },
+  { letter: "U", hint: "Indicador e médio juntos", fingers: [false, true, true, false, false] },
   { letter: "V", hint: "Indicador e médio", fingers: [false, true, true, false, false] },
   { letter: "W", hint: "Três dedos abertos", fingers: [false, true, true, true, false] },
   { letter: "Y", hint: "Polegar e mindinho", fingers: [true, false, false, false, true] },
@@ -100,10 +106,36 @@ function squaredDistance(a: number[], b: number[]): number {
 
 function predictWithModel(model: LandmarkModel, landmarks: Landmark[]): ModelPrediction | null {
   const features = normalizeLandmarks(landmarks);
+
+  if (model.prototypes?.length) {
+    const neighbors = model.prototypes
+      .map((prototype) => ({
+        label: prototype.label,
+        distance: squaredDistance(features, prototype.features),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, model.k ?? 3);
+
+    const votes = new Map<string, number>();
+    for (const neighbor of neighbors) {
+      votes.set(neighbor.label, (votes.get(neighbor.label) ?? 0) + 1 / (neighbor.distance + 1e-9));
+    }
+
+    const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return null;
+    const total = ranked.reduce((sum, [, score]) => sum + score, 0);
+    return {
+      label: ranked[0][0],
+      confidence: total ? Math.max(0, Math.min(1, ranked[0][1] / total)) : 0,
+    };
+  }
+
+  if (!model.centroids) return null;
+
   const scores = model.labels
     .map((label) => ({
       label,
-      distance: squaredDistance(features, model.centroids[label]),
+      distance: squaredDistance(features, model.centroids?.[label] ?? []),
     }))
     .sort((a, b) => a.distance - b.distance);
 
@@ -129,12 +161,14 @@ function getFingerState(lm: Landmark[]): FingerState {
 
 function classifyLetter(lm: Landmark[]): string | null {
   const f = getFingerState(lm);
+  const palmWidth = distance(lm[5], lm[17]);
+  const indexMiddleGap = distance(lm[8], lm[12]) / Math.max(palmWidth, 0.0001);
 
   if (!f.index && !f.middle && !f.ring && !f.pinky) return "A";
   if (f.index && f.middle && f.ring && f.pinky) return "B";
   if (!f.thumb && !f.index && !f.middle && !f.ring && f.pinky) return "I";
   if (f.thumb && f.index && !f.middle && !f.ring && !f.pinky) return "L";
-  if (f.index && f.middle && !f.ring && !f.pinky) return "V";
+  if (f.index && f.middle && !f.ring && !f.pinky) return indexMiddleGap < 0.55 ? "U" : "V";
   if (f.index && f.middle && f.ring && !f.pinky) return "W";
   if (f.thumb && !f.index && !f.middle && !f.ring && f.pinky) return "Y";
 
@@ -212,7 +246,7 @@ function PraticarPage() {
   }, [status]);
 
   useEffect(() => {
-    fetch("/models/landmark-centroids.json")
+    fetch(`/models/landmark-centroids.json?v=${Date.now()}`, { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => setModel(data))
       .catch(() => setModel(null));
@@ -289,7 +323,8 @@ function PraticarPage() {
       setFingers(hands.length ? countFingers(hands[0]) : null);
       if (hands.length) {
         const prediction = model ? predictWithModel(model, hands[0]) : null;
-        setLetter(prediction?.label ?? classifyLetter(hands[0]));
+        const shapeLetter = classifyLetter(hands[0]);
+        setLetter(shapeLetter === "U" ? "U" : (prediction?.label ?? shapeLetter));
         setModelConfidence(prediction?.confidence ?? null);
       } else {
         setLetter(null);

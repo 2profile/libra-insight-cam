@@ -32,13 +32,32 @@ function squaredDistance(a, b) {
   return a.reduce((sum, value, index) => sum + (value - b[index]) ** 2, 0);
 }
 
-function predict(model, features) {
+function predictCentroid(model, features) {
   const scores = model.labels.map((label) => ({
     label,
     distance: squaredDistance(features, model.centroids[label]),
   }));
   scores.sort((a, b) => a.distance - b.distance);
   return scores[0].label;
+}
+
+function predictKnn(model, features, ignoredIndex = -1) {
+  const neighbors = model.prototypes
+    .map((prototype, index) => ({
+      label: prototype.label,
+      distance: squaredDistance(features, prototype.features),
+      index,
+    }))
+    .filter((neighbor) => neighbor.index !== ignoredIndex)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, model.k);
+
+  const votes = new Map();
+  for (const neighbor of neighbors) {
+    votes.set(neighbor.label, (votes.get(neighbor.label) ?? 0) + 1 / (neighbor.distance + 1e-9));
+  }
+
+  return [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
 function meanVector(vectors) {
@@ -103,7 +122,24 @@ function trainCentroids(samples) {
   };
 }
 
-function evaluate(model, samples) {
+function trainKnn(samples) {
+  const labels = [...groupByLabel(samples).keys()].sort();
+  return {
+    kind: "knn-landmark-classifier",
+    version: 2,
+    createdAt: new Date().toISOString(),
+    frameCount: SAMPLE_FRAMES,
+    featureCount: samples[0]?.features.length ?? 0,
+    labels,
+    k: 3,
+    prototypes: samples.map((sample) => ({
+      label: sample.label,
+      features: sample.features,
+    })),
+  };
+}
+
+function evaluate(model, samples, predictSample) {
   const matrix = Object.fromEntries(
     model.labels.map((actual) => [
       actual,
@@ -112,8 +148,8 @@ function evaluate(model, samples) {
   );
 
   let correct = 0;
-  for (const sample of samples) {
-    const predicted = predict(model, sample.features);
+  for (const [index, sample] of samples.entries()) {
+    const predicted = predictSample(sample, index);
     matrix[sample.label][predicted] += 1;
     if (predicted === sample.label) correct += 1;
   }
@@ -141,22 +177,36 @@ if (labels.size < 2) {
   process.exit(1);
 }
 
-const { train, test } = splitSamples(samples);
-const model = trainCentroids(train);
-const evaluation = evaluate(model, test);
+const centroidSplit = splitSamples(samples);
+const centroidModel = trainCentroids(centroidSplit.train);
+const centroidEvaluation = evaluate(centroidModel, centroidSplit.test, (sample) =>
+  predictCentroid(centroidModel, sample.features),
+);
+const model = trainKnn(samples);
+const evaluation = evaluate(model, samples, (sample, index) =>
+  predictKnn(model, sample.features, index),
+);
 
 model.metrics = {
-  trainSamples: train.length,
-  testSamples: test.length,
+  trainSamples: samples.length,
+  testSamples: samples.length,
+  testStrategy: "leave-one-out",
   testAccuracy: evaluation.accuracy,
   confusionMatrix: evaluation.matrix,
+  centroidBaseline: {
+    trainSamples: centroidSplit.train.length,
+    testSamples: centroidSplit.test.length,
+    testAccuracy: centroidEvaluation.accuracy,
+    confusionMatrix: centroidEvaluation.matrix,
+  },
 };
 
 fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
 fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(model, null, 2)}\n`);
 
 console.log(`labels: ${model.labels.join(", ")}`);
-console.log(`train: ${train.length}`);
-console.log(`test: ${test.length}`);
+console.log(`train: ${samples.length}`);
+console.log(`test: ${samples.length} (${model.metrics.testStrategy})`);
 console.log(`accuracy: ${(evaluation.accuracy * 100).toFixed(1)}%`);
+console.log(`centroid baseline: ${(centroidEvaluation.accuracy * 100).toFixed(1)}%`);
 console.log(`model: ${OUTPUT_PATH}`);
