@@ -324,7 +324,11 @@ function PraticarPage() {
       if (hands.length) {
         const prediction = model ? predictWithModel(model, hands[0]) : null;
         const shapeLetter = classifyLetter(hands[0]);
-        setLetter(shapeLetter === "U" ? "U" : (prediction?.label ?? shapeLetter));
+        setLetter(
+          shapeLetter === "U" || shapeLetter === "V"
+            ? shapeLetter
+            : (prediction?.label ?? shapeLetter),
+        );
         setModelConfidence(prediction?.confidence ?? null);
       } else {
         setLetter(null);
