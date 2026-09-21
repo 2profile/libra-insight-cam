@@ -206,6 +206,7 @@ function PraticarPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const landmarkerRef = useRef<HandLandmarker | null>(null);
+  const modelRef = useRef<LandmarkModel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
@@ -248,8 +249,14 @@ function PraticarPage() {
   useEffect(() => {
     fetch(`/models/landmark-centroids.json?v=${Date.now()}`, { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setModel(data))
-      .catch(() => setModel(null));
+      .then((data) => {
+        modelRef.current = data;
+        setModel(data);
+      })
+      .catch(() => {
+        modelRef.current = null;
+        setModel(null);
+      });
   }, []);
 
   const start = async () => {
@@ -322,7 +329,7 @@ function PraticarPage() {
       setHandsCount(hands.length);
       setFingers(hands.length ? countFingers(hands[0]) : null);
       if (hands.length) {
-        const prediction = model ? predictWithModel(model, hands[0]) : null;
+        const prediction = modelRef.current ? predictWithModel(modelRef.current, hands[0]) : null;
         const shapeLetter = classifyLetter(hands[0]);
         setLetter(
           shapeLetter === "U" || shapeLetter === "V"
