@@ -14,19 +14,20 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
+    <div className="page-grid flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-[2rem] bg-navy p-8 text-center text-white shadow-elegant sm:p-12">
+        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full border-[36px] border-primary/10" />
+        <div className="relative">
+          <p className="text-8xl font-black tracking-[-0.06em] text-primary">404</p>
+          <h1 className="mt-4 text-2xl font-black">Esta página não foi encontrada</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-white/60">
+            O endereço pode ter mudado. Volte ao início para continuar aprendendo.
+          </p>
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="mt-7 inline-flex h-11 items-center justify-center rounded-xl bg-gradient-primary px-6 text-sm font-bold text-primary-foreground shadow-elegant transition-transform hover:-translate-y-0.5"
           >
-            Go home
+            Voltar ao início
           </Link>
         </div>
       </div>
@@ -42,29 +43,32 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+    <div className="page-grid flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-lg rounded-[2rem] border border-border bg-white p-8 text-center shadow-elegant sm:p-12">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-2xl">
+          !
+        </span>
+        <h1 className="mt-5 text-2xl font-black tracking-tight text-foreground">
+          Esta página não carregou
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Algo não saiu como esperado. Tente novamente ou retorne ao início.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            Tentar novamente
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-input bg-background px-5 text-sm font-bold text-foreground transition-colors hover:bg-secondary"
           >
-            Go home
+            Voltar ao início
           </a>
         </div>
       </div>

@@ -1,5 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Camera, CameraOff, Download, Loader2, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Camera,
+  CameraOff,
+  Database,
+  Download,
+  Loader2,
+  Radio,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -128,6 +137,11 @@ function ColetarPage() {
     if (ctx && canvasRef.current)
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   }, []);
+
+  const stop = useCallback(() => {
+    stopCamera();
+    setStatus("idle");
+  }, [stopCamera]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
@@ -271,179 +285,288 @@ function ColetarPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm font-medium text-primary">
-              <Camera className="h-4 w-4" /> Dataset
+      <main>
+        <section className="relative overflow-hidden bg-navy py-12 text-white sm:py-16">
+          <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[42px] border-primary/10" />
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-primary">
+              <Database className="h-4 w-4" /> Laboratório do projeto
             </span>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-              Coleta de landmarks
-            </h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
-              Grave sequências curtas de 30 frames por letra para treinar o classificador do TCC.
-            </p>
+            <div className="mt-5 flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="max-w-3xl text-balance text-4xl font-black tracking-[-0.04em] sm:text-5xl">
+                  Coleta de landmarks
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/65 sm:text-base">
+                  Grave sequências de {SAMPLE_FRAMES} frames por letra para ampliar o dataset do
+                  classificador.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="outline"
+                  onClick={() => downloadJson(samples)}
+                  disabled={samples.length === 0}
+                  className="border-white/15 bg-white/8 text-white hover:bg-white/15 hover:text-white"
+                >
+                  <Download className="h-4 w-4" /> Exportar JSON
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSamples([])}
+                  disabled={samples.length === 0}
+                  className="border-white/15 bg-white/8 text-white hover:bg-white/15 hover:text-white"
+                >
+                  <Trash2 className="h-4 w-4" /> Limpar sessão
+                </Button>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => downloadJson(samples)}
-              disabled={samples.length === 0}
-            >
-              <Download className="h-4 w-4" /> Exportar JSON
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setSamples([])}
-              disabled={samples.length === 0}
-            >
-              <Trash2 className="h-4 w-4" /> Limpar
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
-          <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
-            <div className="relative aspect-video bg-muted">
-              <video
-                ref={videoRef}
-                playsInline
-                muted
-                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-              />
-              <canvas
-                ref={canvasRef}
-                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-              />
-
-              {status !== "running" && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-hero p-6 text-center">
-                  {status === "loading" ? (
-                    <>
-                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                      <p className="text-sm font-medium text-foreground">
-                        Carregando câmera e modelo...
-                      </p>
-                    </>
-                  ) : status === "error" ? (
-                    <>
-                      <AlertTriangle className="h-10 w-10 text-destructive" />
-                      <p className="max-w-sm text-sm text-foreground">{error}</p>
-                      <Button variant="hero" onClick={startCamera}>
-                        Tentar novamente
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card text-primary shadow-soft">
-                        <Camera className="h-8 w-8" />
-                      </span>
-                      <Button variant="hero" size="lg" onClick={startCamera}>
-                        <Camera className="h-4 w-4" /> Ativar câmera
-                      </Button>
-                    </>
+        <section className="page-grid py-8 sm:py-12">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <section className="min-w-0 overflow-hidden rounded-[2rem] bg-navy shadow-elegant">
+                <div className="relative h-[360px] bg-[radial-gradient(circle_at_center,oklch(0.34_0.09_191),oklch(0.18_0.06_244))] sm:aspect-video sm:h-auto sm:min-h-72">
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+                  />
+                  {status !== "running" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center text-white">
+                      <div className="absolute h-44 w-44 rounded-full border border-primary/20" />
+                      <div className="absolute h-32 w-32 rounded-full border border-dashed border-white/15" />
+                      {status === "loading" ? (
+                        <>
+                          <Loader2 className="relative h-11 w-11 animate-spin text-primary" />
+                          <p className="relative text-sm font-bold">Carregando câmera e modelo…</p>
+                        </>
+                      ) : status === "error" ? (
+                        <>
+                          <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
+                            <AlertTriangle className="h-8 w-8" />
+                          </span>
+                          <p className="relative w-full max-w-xs text-sm leading-relaxed text-white/70">
+                            {error}
+                          </p>
+                          <Button className="relative" variant="hero" onClick={startCamera}>
+                            Tentar novamente
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-primary">
+                            <Camera className="h-8 w-8" />
+                          </span>
+                          <div className="relative w-full max-w-xs">
+                            <p className="font-bold">Prepare o enquadramento</p>
+                            <p className="mt-1 text-sm text-white/55">
+                              Uma mão por vez, bem iluminada e dentro do quadro.
+                            </p>
+                          </div>
+                          <Button
+                            className="relative"
+                            variant="hero"
+                            size="lg"
+                            onClick={startCamera}
+                          >
+                            <Camera className="h-4 w-4" /> Ativar câmera
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {status === "running" && (
+                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-navy/80 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md">
+                      <span
+                        className={`h-2 w-2 rounded-full ${recording ? "animate-pulse bg-coral" : "bg-primary"}`}
+                      />
+                      {recording ? "Gravando" : "Câmera ativa"}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border p-5">
-              <div className="flex flex-wrap gap-6">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Mãos</p>
-                  <p className="text-2xl font-bold text-foreground">{handsCount}</p>
+                <div className="grid grid-cols-3 gap-px bg-white/10">
+                  {[
+                    ["Mãos", handsCount],
+                    ["Frames", `${capturedFrames}/${SAMPLE_FRAMES}`],
+                    ["Amostras", samples.length],
+                  ].map(([text, value]) => (
+                    <div key={text} className="bg-navy px-3 py-4 text-center sm:px-5 sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">
+                        {text}
+                      </p>
+                      <p className="mt-1 text-xl font-black text-primary sm:text-2xl">{value}</p>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Frames</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {capturedFrames}/{SAMPLE_FRAMES}
+
+                {status === "running" && (
+                  <div className="flex flex-col gap-2 border-t border-white/10 p-4 sm:flex-row sm:justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={stop}
+                      className="border-white/15 bg-white/8 text-white hover:bg-white/15 hover:text-white"
+                    >
+                      <CameraOff className="h-4 w-4" /> Encerrar
+                    </Button>
+                    <Button
+                      variant={recording ? "warm" : "hero"}
+                      onClick={startRecording}
+                      disabled={recording}
+                    >
+                      <Radio className="h-4 w-4" /> {recording ? "Gravando…" : "Gravar amostra"}
+                    </Button>
+                  </div>
+                )}
+              </section>
+
+              <aside className="min-w-0 rounded-[2rem] border border-border bg-white p-5 shadow-soft">
+                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-primary">
+                  Configuração
+                </p>
+                <h2 className="mt-1 text-xl font-extrabold text-foreground">Nova amostra</h2>
+                <div className="mt-5 grid gap-4">
+                  <label className="block text-sm font-bold text-foreground">
+                    Letra
+                    <select
+                      value={label}
+                      onChange={(event) => setLabel(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-medium outline-none focus:border-primary"
+                    >
+                      {alphabet.map((sign) => (
+                        <option key={sign.letter} value={sign.letter}>
+                          {sign.letter}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {devices.length > 0 && status !== "running" && (
+                    <label className="block text-sm font-bold text-foreground">
+                      Câmera
+                      <select
+                        value={deviceId}
+                        onChange={(event) => setDeviceId(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-medium outline-none focus:border-primary"
+                      >
+                        <option value="">Padrão do navegador</option>
+                        {devices.map((device, index) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label || `Câmera ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-navy p-5 text-white">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+                    Classe atual
+                  </p>
+                  <p className="mt-1 text-5xl font-black text-primary">{label}</p>
+                  <p className="mt-3 text-xs leading-relaxed text-white/55">
+                    Mantenha a mão dentro do quadro durante toda a gravação.
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Amostras</p>
-                  <p className="text-2xl font-bold text-foreground">{samples.length}</p>
-                </div>
-              </div>
 
-              {status === "running" ? (
-                <Button
-                  variant={recording ? "warm" : "hero"}
-                  onClick={startRecording}
-                  disabled={recording}
-                >
-                  {recording ? "Gravando..." : "Gravar amostra"}
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={stopCamera}>
-                  <CameraOff className="h-4 w-4" /> Parar
-                </Button>
-              )}
-            </div>
-          </section>
-
-          <aside className="rounded-3xl border border-border bg-card p-5 shadow-soft">
-            <label className="block text-sm font-medium text-foreground">
-              Letra
-              <select
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm text-foreground"
-              >
-                {alphabet.map((sign) => (
-                  <option key={sign.letter} value={sign.letter}>
-                    {sign.letter}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {devices.length > 0 && status !== "running" && (
-              <label className="mt-4 block text-sm font-medium text-foreground">
-                Câmera
-                <select
-                  value={deviceId}
-                  onChange={(event) => setDeviceId(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm text-foreground"
-                >
-                  <option value="">Padrão do navegador</option>
-                  {devices.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Câmera ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <div className="mt-5 rounded-2xl border border-dashed border-border bg-secondary/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Classe atual</p>
-              <p className="mt-1 text-4xl font-extrabold text-primary">{label}</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Mantenha a mão dentro do quadro durante a gravação.
-              </p>
-            </div>
-
-            <div className="mt-5">
-              <h2 className="text-sm font-semibold text-foreground">Amostras por letra</h2>
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {alphabet.map((sign) => (
-                  <div
-                    key={sign.letter}
-                    className={`rounded-xl border p-2 text-center ${
-                      label === sign.letter ? "border-primary bg-secondary" : "border-border"
-                    }`}
-                  >
-                    <p className="text-sm font-bold text-foreground">{sign.letter}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {samplesByLabel[sign.letter] ?? 0}
-                    </p>
+                <div className="mt-5">
+                  <h3 className="text-sm font-extrabold text-foreground">Amostras por letra</h3>
+                  <div className="mt-3 grid grid-cols-5 gap-1.5">
+                    {alphabet.map((sign) => (
+                      <button
+                        type="button"
+                        key={sign.letter}
+                        onClick={() => setLabel(sign.letter)}
+                        className={`rounded-xl border p-2 text-center transition-colors ${
+                          label === sign.letter
+                            ? "border-primary bg-secondary"
+                            : "border-border bg-background hover:border-primary/40"
+                        }`}
+                      >
+                        <span className="block text-xs font-black text-foreground">
+                          {sign.letter}
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          {samplesByLabel[sign.letter] ?? 0}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              </aside>
             </div>
-          </aside>
-        </div>
+
+            <section className="mt-5 rounded-[2rem] border border-border bg-white p-5 shadow-soft sm:p-6">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-primary">
+                    Sessão atual
+                  </p>
+                  <h2 className="mt-1 text-xl font-extrabold text-foreground">
+                    Amostras coletadas
+                  </h2>
+                </div>
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">
+                  {samples.length} no total
+                </span>
+              </div>
+              {samples.length ? (
+                <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {samples.map((sample) => (
+                    <div
+                      key={sample.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy text-lg font-black text-primary">
+                          {sample.label}
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold text-foreground">
+                            {sample.frameCount} frames
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(sample.createdAt).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Excluir amostra da letra ${sample.label}`}
+                        onClick={() =>
+                          setSamples((current) => current.filter((item) => item.id !== sample.id))
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-dashed border-border bg-background p-8 text-center">
+                  <p className="text-sm font-semibold text-foreground">
+                    Nenhuma amostra nesta sessão.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Ative a câmera e grave a primeira sequência.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+        </section>
       </main>
     </div>
   );

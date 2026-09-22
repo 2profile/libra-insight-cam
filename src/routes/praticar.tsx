@@ -1,8 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, Hand, Loader2, AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  Camera,
+  CameraOff,
+  Hand,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
+import { alphabet } from "@/lib/libras";
 
 export const Route = createFileRoute("/praticar")({
   head: () => ({
@@ -72,19 +82,28 @@ type ModelPrediction = {
   confidence: number;
 };
 
-const LETTER_GUIDE: Array<{
-  letter: string;
-  hint: string;
-  fingers: [boolean, boolean, boolean, boolean, boolean];
-}> = [
-  { letter: "A", hint: "Punho fechado", fingers: [false, false, false, false, false] },
-  { letter: "B", hint: "Quatro dedos abertos", fingers: [false, true, true, true, true] },
-  { letter: "I", hint: "Mindinho aberto", fingers: [false, false, false, false, true] },
-  { letter: "L", hint: "Polegar e indicador", fingers: [true, true, false, false, false] },
-  { letter: "U", hint: "Indicador e médio juntos", fingers: [false, true, true, false, false] },
-  { letter: "V", hint: "Indicador e médio", fingers: [false, true, true, false, false] },
-  { letter: "W", hint: "Três dedos abertos", fingers: [false, true, true, true, false] },
-  { letter: "Y", hint: "Polegar e mindinho", fingers: [true, false, false, false, true] },
+type GuidePoint = { x: number; y: number };
+
+const TRAINED_LABELS = [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "I",
+  "L",
+  "M",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
 ];
 function distance(a: Landmark, b: Landmark): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -102,6 +121,101 @@ function normalizeLandmarks(landmarks: Landmark[]): number[] {
 
 function squaredDistance(a: number[], b: number[]): number {
   return a.reduce((sum, value, index) => sum + (value - b[index]) ** 2, 0);
+}
+
+function getRepresentativeFeatures(model: LandmarkModel | null): Record<string, number[]> {
+  if (!model) return {};
+  if (model.centroids) return model.centroids;
+
+  const grouped = new Map<string, number[][]>();
+  for (const prototype of model.prototypes ?? []) {
+    const group = grouped.get(prototype.label) ?? [];
+    group.push(prototype.features);
+    grouped.set(prototype.label, group);
+  }
+
+  return Object.fromEntries(
+    [...grouped.entries()].map(([label, samples]) => {
+      const mean = samples[0].map(
+        (_, index) => samples.reduce((sum, sample) => sum + sample[index], 0) / samples.length,
+      );
+      const representative = samples.reduce((best, sample) =>
+        squaredDistance(sample, mean) < squaredDistance(best, mean) ? sample : best,
+      );
+      return [label, representative];
+    }),
+  );
+}
+
+function projectGuidePoints(features: number[]): GuidePoint[] {
+  const raw = Array.from({ length: 21 }, (_, index) => ({
+    x: features[index * 3] ?? 0,
+    y: features[index * 3 + 1] ?? 0,
+  }));
+  const xs = raw.map((point) => point.x);
+  const ys = raw.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = Math.max(maxX - minX, 0.001);
+  const height = Math.max(maxY - minY, 0.001);
+  const scale = 76 / Math.max(width, height);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  return raw.map((point) => ({
+    x: 50 + (point.x - centerX) * scale,
+    y: 50 + (point.y - centerY) * scale,
+  }));
+}
+
+function LandmarkGuide({ features, label }: { features?: number[]; label: string }) {
+  const points = features ? projectGuidePoints(features) : [];
+
+  return (
+    <div className="relative flex min-h-64 items-center justify-center overflow-hidden rounded-[1.75rem] bg-navy text-primary">
+      <div className="absolute h-52 w-52 rounded-full border border-primary/15" />
+      <div className="absolute h-40 w-40 rounded-full border border-dashed border-white/10" />
+      <span className="absolute left-5 top-4 text-5xl font-black text-white/8">{label}</span>
+      {points.length ? (
+        <svg
+          viewBox="0 0 100 100"
+          role="img"
+          aria-label={`Representação dos pontos da mão para a letra ${label}`}
+          className="relative h-56 w-56 drop-shadow-[0_0_18px_rgba(27,209,194,0.25)]"
+        >
+          {HAND_CONNECTIONS.map(([start, end]) => (
+            <line
+              key={`${start}-${end}`}
+              x1={points[start].x}
+              y1={points[start].y}
+              x2={points[end].x}
+              y2={points[end].y}
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              opacity="0.72"
+            />
+          ))}
+          {points.map((point, index) => (
+            <circle
+              key={index}
+              cx={point.x}
+              cy={point.y}
+              r={index === 0 ? 2.2 : 1.6}
+              fill={index === 0 ? "white" : "currentColor"}
+            />
+          ))}
+        </svg>
+      ) : (
+        <div className="relative text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+          <p className="mt-3 text-xs font-bold text-white/55">Preparando guia visual…</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function predictWithModel(model: LandmarkModel, landmarks: Landmark[]): ModelPrediction | null {
@@ -175,19 +289,6 @@ function classifyLetter(lm: Landmark[]): string | null {
   return null;
 }
 
-function MiniHand({ fingers }: { fingers: [boolean, boolean, boolean, boolean, boolean] }) {
-  return (
-    <div className="flex h-14 items-end justify-center gap-1 rounded-xl bg-secondary/70 px-3 py-2">
-      {fingers.map((open, index) => (
-        <span
-          key={index}
-          className={`w-2 rounded-full ${open ? "h-10 bg-primary" : "h-4 bg-muted-foreground/35"}`}
-        />
-      ))}
-    </div>
-  );
-}
-
 function countFingers(lm: Landmark[]): number {
   let count = 0;
   // Dedos (indicador, médio, anelar, mínimo): ponta acima da junção
@@ -218,6 +319,7 @@ function PraticarPage() {
   const [modelConfidence, setModelConfidence] = useState<number | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState("");
+  const [guideLetter, setGuideLetter] = useState(TRAINED_LABELS[0]);
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -362,153 +464,249 @@ function PraticarPage() {
     rafRef.current = requestAnimationFrame(loop);
   };
 
+  const mappedLabels = model?.labels?.length ? model.labels : TRAINED_LABELS;
+  const activeSign = letter ? alphabet.find((sign) => sign.letter === letter) : null;
+  const guideSign = alphabet.find((sign) => sign.letter === guideLetter);
+  const representativeFeatures = useMemo(() => getRepresentativeFeatures(model), [model]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="mx-auto max-w-4xl px-4 py-12">
-        <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm font-medium text-primary">
-          <Hand className="h-4 w-4" /> Prática livre
-        </span>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-          Reconhecimento de mãos pela câmera
-        </h1>
-        <p className="mt-2 max-w-xl text-muted-foreground">
-          Ative sua webcam para acompanhar os pontos da mão em tempo real. Tudo roda no seu
-          navegador — nenhuma imagem é enviada para servidores.
-        </p>
+      <main>
+        <section className="relative overflow-hidden bg-navy py-12 text-white sm:py-16">
+          <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[42px] border-primary/10" />
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-primary">
+              <Hand className="h-4 w-4" /> Prática livre
+            </span>
+            <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_0.75fr] lg:items-end">
+              <div>
+                <h1 className="max-w-3xl text-balance text-4xl font-black tracking-[-0.04em] sm:text-5xl">
+                  Veja seus movimentos ganharem forma.
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/65 sm:text-base">
+                  Ative a webcam para acompanhar os pontos da mão e testar o reconhecimento em tempo
+                  real.
+                </p>
+              </div>
+              <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/8 p-4 lg:justify-self-end">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <p className="max-w-sm text-xs leading-relaxed text-white/65 sm:text-sm">
+                  Privacidade local: nenhuma imagem da câmera é enviada para servidores.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        {devices.length > 0 && status !== "running" && (
-          <label className="mt-5 block max-w-md text-sm font-medium text-foreground">
-            Câmera
-            <select
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm text-foreground"
-            >
-              <option value="">Padrão do navegador</option>
-              {devices.map((device, index) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Câmera ${index + 1}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <section className="page-grid py-8 sm:py-12">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6">
+            {devices.length > 0 && status !== "running" && (
+              <label className="mb-5 block max-w-md text-sm font-bold text-foreground">
+                Escolha a câmera
+                <select
+                  value={deviceId}
+                  onChange={(event) => setDeviceId(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border border-input bg-white px-3 text-sm font-medium text-foreground shadow-sm outline-none focus:border-primary"
+                >
+                  <option value="">Padrão do navegador</option>
+                  {devices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Câmera ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-[1fr_260px]">
-          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
-            <div className="relative aspect-video bg-muted">
-              <video
-                ref={videoRef}
-                playsInline
-                muted
-                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-              />
-              <canvas
-                ref={canvasRef}
-                className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
-              />
+            <div className="grid gap-5">
+              <section className="min-w-0 overflow-hidden rounded-[2rem] bg-navy shadow-elegant">
+                <div className="relative h-[360px] bg-[radial-gradient(circle_at_center,oklch(0.34_0.09_191),oklch(0.18_0.06_244))] sm:aspect-video sm:h-auto sm:min-h-72">
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+                  />
 
-              {status !== "running" && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-hero p-6 text-center">
-                  {status === "loading" ? (
-                    <>
-                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                      <p className="text-sm font-medium text-foreground">
-                        Carregando modelo de detecção…
-                      </p>
-                    </>
-                  ) : status === "error" ? (
-                    <>
-                      <AlertTriangle className="h-10 w-10 text-destructive" />
-                      <p className="max-w-sm text-sm text-foreground">{error}</p>
-                      <Button variant="hero" onClick={start}>
-                        Tentar novamente
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-card text-primary shadow-soft">
-                        <Camera className="h-8 w-8" />
-                      </span>
-                      <p className="max-w-sm text-sm text-muted-foreground">
-                        Clique para ativar a câmera e começar a detecção das mãos.
-                      </p>
-                      <Button variant="hero" size="lg" onClick={start}>
-                        <Camera className="h-4 w-4" /> Ativar câmera
-                      </Button>
-                    </>
+                  {status !== "running" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center text-white">
+                      <div className="absolute h-44 w-44 rounded-full border border-primary/20" />
+                      <div className="absolute h-32 w-32 rounded-full border border-dashed border-white/15" />
+                      {status === "loading" ? (
+                        <>
+                          <Loader2 className="relative h-11 w-11 animate-spin text-primary" />
+                          <div className="relative w-full max-w-xs">
+                            <p className="font-bold">Preparando o reconhecimento</p>
+                            <p className="mt-1 text-sm text-white/55">
+                              Carregando câmera e modelo…
+                            </p>
+                          </div>
+                        </>
+                      ) : status === "error" ? (
+                        <>
+                          <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
+                            <AlertTriangle className="h-8 w-8" />
+                          </span>
+                          <p className="relative w-full max-w-xs text-sm leading-relaxed text-white/75">
+                            {error}
+                          </p>
+                          <Button className="relative" variant="hero" size="lg" onClick={start}>
+                            Tentar novamente
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-primary shadow-soft backdrop-blur-sm">
+                            <Camera className="h-8 w-8" />
+                          </span>
+                          <div className="relative w-full max-w-xs">
+                            <p className="font-bold">Sua área de prática está pronta</p>
+                            <p className="mt-1 max-w-sm text-sm text-white/55">
+                              Posicione as mãos dentro do quadro e comece quando quiser.
+                            </p>
+                          </div>
+                          <Button className="relative" variant="hero" size="lg" onClick={start}>
+                            <Camera className="h-4 w-4" /> Ativar câmera
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {status === "running" && (
+                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-navy/80 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Ao vivo
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {status === "running" && (
-              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border p-5">
-                <div className="flex gap-6">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Mãos</p>
-                    <p className="text-2xl font-bold text-foreground">{handsCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Dedos levantados
-                    </p>
-                    <p className="text-2xl font-bold text-primary">{fingers ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Letra</p>
-                    <p className="text-2xl font-bold text-primary">{letter ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Confiança
-                    </p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {modelConfidence == null ? "—" : `${Math.round(modelConfidence * 100)}%`}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="outline" onClick={stop}>
-                  <CameraOff className="h-4 w-4" /> Parar
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <aside className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-            <h2 className="text-sm font-semibold text-foreground">Guia de teste</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {model
-                ? `Modelo treinado: ${model.labels.join(", ")}`
-                : "Heurística simples: posição dos dedos."}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-1">
-              {LETTER_GUIDE.map((item) => (
-                <div
-                  key={item.letter}
-                  className={`rounded-2xl border p-3 ${
-                    letter === item.letter ? "border-primary bg-secondary" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-2xl font-extrabold text-foreground">{item.letter}</p>
-                      <p className="text-xs text-muted-foreground">{item.hint}</p>
+                <div className="grid grid-cols-2 gap-px bg-white/10 sm:grid-cols-4">
+                  {[
+                    ["Mãos", handsCount],
+                    ["Dedos", fingers ?? "—"],
+                    ["Letra", letter ?? "—"],
+                    [
+                      "Confiança",
+                      modelConfidence == null ? "—" : `${Math.round(modelConfidence * 100)}%`,
+                    ],
+                  ].map(([labelText, value]) => (
+                    <div key={labelText} className="bg-navy px-4 py-4 text-center sm:text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+                        {labelText}
+                      </p>
+                      <p className="mt-1 text-2xl font-black text-primary">{value}</p>
                     </div>
-                    <MiniHand fingers={item.fingers} />
+                  ))}
+                </div>
+                {status === "running" && (
+                  <div className="flex justify-end border-t border-white/10 p-4">
+                    <Button
+                      variant="outline"
+                      onClick={stop}
+                      className="border-white/15 bg-white/8 text-white hover:bg-white/15 hover:text-white"
+                    >
+                      <CameraOff className="h-4 w-4" /> Encerrar câmera
+                    </Button>
+                  </div>
+                )}
+              </section>
+
+              <section className="min-w-0 rounded-[2rem] border border-border bg-white p-5 shadow-soft sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-primary">
+                      Mapa de reconhecimento
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-foreground">
+                      Letras disponíveis no modelo
+                    </h2>
+                  </div>
+                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-secondary-foreground">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    {mappedLabels.length} letras mapeadas
+                  </span>
+                </div>
+                <div className="mt-5 grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+                  <LandmarkGuide
+                    label={guideLetter}
+                    features={representativeFeatures[guideLetter]}
+                  />
+                  <div className="min-w-0">
+                    <div className="grid grid-cols-6 gap-2 sm:grid-cols-10">
+                      {mappedLabels.map((mappedLetter) => {
+                        const sign = alphabet.find((item) => item.letter === mappedLetter);
+                        const isSelected = guideLetter === mappedLetter;
+                        const isDetected = letter === mappedLetter;
+                        return (
+                          <button
+                            type="button"
+                            key={mappedLetter}
+                            title={sign?.description}
+                            aria-pressed={isSelected}
+                            aria-label={
+                              sign
+                                ? `Exibir guia da letra ${mappedLetter}: ${sign.description}`
+                                : `Exibir guia da letra ${mappedLetter}`
+                            }
+                            onClick={() => setGuideLetter(mappedLetter)}
+                            className={`relative flex aspect-square min-w-0 items-center justify-center rounded-2xl border text-lg font-black transition-all hover:-translate-y-0.5 ${
+                              isSelected
+                                ? "border-primary bg-navy text-primary shadow-elegant"
+                                : "border-border bg-background text-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {mappedLetter}
+                            {isDetected && (
+                              <span
+                                className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-coral"
+                                aria-label="Letra reconhecida agora"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 rounded-2xl bg-secondary/70 px-4 py-4">
+                      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                        Guia da letra {guideLetter}
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        {guideSign?.description ?? "Descrição indisponível para esta letra."}
+                      </p>
+                      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                        O desenho usa uma amostra representativa do conjunto que treinou o modelo.
+                        Use-o como referência de posição e orientação da mão.
+                      </p>
+                      {activeSign && (
+                        <button
+                          type="button"
+                          onClick={() => setGuideLetter(activeSign.letter)}
+                          className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-foreground shadow-sm transition-colors hover:text-primary"
+                        >
+                          Reconhecida agora: {activeSign.letter}
+                          <span className="h-2 w-2 rounded-full bg-coral" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
+              </section>
             </div>
-          </aside>
-        </div>
 
-        <div className="mt-6 rounded-2xl border border-dashed border-border bg-secondary/40 p-5 text-sm text-muted-foreground">
-          <strong className="text-foreground">Área de integração:</strong> os 21 pontos de cada mão
-          estão disponíveis em tempo real. Esta versão usa modelo treinado quando disponível e
-          mantém heurística como fallback.
-        </div>
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-primary/20 bg-secondary/70 p-4 text-sm text-muted-foreground">
+              <Activity className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <p>
+                <strong className="text-foreground">Como funciona:</strong> os 21 pontos de cada mão
+                são analisados em tempo real. O modelo treinado é usado quando disponível, com uma
+                heurística visual como apoio.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
