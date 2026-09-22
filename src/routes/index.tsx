@@ -72,7 +72,7 @@ function Index() {
             width={1672}
             height={941}
             fetchPriority="high"
-            className="absolute inset-0 h-full w-full object-cover object-[66%_center]"
+            className="absolute inset-0 h-full w-full object-cover object-[68%_center] sm:object-[64%_28%] lg:object-[58%_15%]"
           />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(0.18_0.07_250)_0%,oklch(0.18_0.07_250/.96)_30%,oklch(0.2_0.06_238/.62)_51%,transparent_76%)]" />
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-navy/55 to-transparent" />
