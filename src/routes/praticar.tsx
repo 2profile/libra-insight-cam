@@ -13,6 +13,7 @@ import {
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { alphabet } from "@/lib/libras";
+import { framesToFeatures, MIN_FRAMES, SAMPLE_FRAMES } from "@/lib/landmark-features.mjs";
 
 export const Route = createFileRoute("/praticar")({
   head: () => ({
@@ -107,16 +108,6 @@ const TRAINED_LABELS = [
 ];
 function distance(a: Landmark, b: Landmark): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function normalizeLandmarks(landmarks: Landmark[]): number[] {
-  const wrist = landmarks[0];
-  const scale = Math.max(distance(landmarks[5], landmarks[17]), 0.0001);
-  return landmarks.flatMap((point) => [
-    (point.x - wrist.x) / scale,
-    (point.y - wrist.y) / scale,
-    (point.z - wrist.z) / scale,
-  ]);
 }
 
 function squaredDistance(a: number[], b: number[]): number {
@@ -218,8 +209,7 @@ function LandmarkGuide({ features, label }: { features?: number[]; label: string
   );
 }
 
-function predictWithModel(model: LandmarkModel, landmarks: Landmark[]): ModelPrediction | null {
-  const features = normalizeLandmarks(landmarks);
+function predictWithModel(model: LandmarkModel, features: number[]): ModelPrediction | null {
 
   if (model.prototypes?.length) {
     const neighbors = model.prototypes
@@ -309,6 +299,7 @@ function PraticarPage() {
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const modelRef = useRef<LandmarkModel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const frameBufferRef = useRef<Array<{ landmarks: Landmark[] }>>([]);
 
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
   const [error, setError] = useState<string>("");
@@ -325,6 +316,7 @@ function PraticarPage() {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    frameBufferRef.current = [];
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx && canvasRef.current)
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -431,7 +423,13 @@ function PraticarPage() {
       setHandsCount(hands.length);
       setFingers(hands.length ? countFingers(hands[0]) : null);
       if (hands.length) {
-        const prediction = modelRef.current ? predictWithModel(modelRef.current, hands[0]) : null;
+        const buffer = frameBufferRef.current;
+        buffer.push({ landmarks: hands[0] });
+        if (buffer.length > SAMPLE_FRAMES) buffer.shift();
+        const prediction =
+          modelRef.current && buffer.length >= MIN_FRAMES
+            ? predictWithModel(modelRef.current, framesToFeatures(buffer))
+            : null;
         const shapeLetter = classifyLetter(hands[0]);
         setLetter(
           shapeLetter === "U" || shapeLetter === "V"
@@ -440,6 +438,7 @@ function PraticarPage() {
         );
         setModelConfidence(prediction?.confidence ?? null);
       } else {
+        frameBufferRef.current = [];
         setLetter(null);
         setModelConfidence(null);
       }

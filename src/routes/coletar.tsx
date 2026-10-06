@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { alphabet } from "@/lib/libras";
+import { SAMPLE_FRAMES } from "@/lib/landmark-features.mjs";
 
 export const Route = createFileRoute("/coletar")({
   head: () => ({
@@ -27,7 +28,6 @@ export const Route = createFileRoute("/coletar")({
   component: ColetarPage,
 });
 
-const SAMPLE_FRAMES = 30;
 const HAND_CONNECTIONS: [number, number][] = [
   [0, 1],
   [1, 2],
@@ -298,8 +298,9 @@ function ColetarPage() {
                   Coleta de landmarks
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/65 sm:text-base">
-                  Grave sequências de {SAMPLE_FRAMES} frames por letra para ampliar o dataset do
-                  classificador.
+                  Grave sequências de {SAMPLE_FRAMES} frames por letra. Para J, Z e qualquer sinal
+                  com movimento, execute o gesto completo nessa janela — o treino usa a trajetória,
+                  não só a pose.
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -473,7 +474,9 @@ function ColetarPage() {
                   </p>
                   <p className="mt-1 text-5xl font-black text-primary">{label}</p>
                   <p className="mt-3 text-xs leading-relaxed text-white/55">
-                    Mantenha a mão dentro do quadro durante toda a gravação.
+                    {label === "J" || label === "Z"
+                      ? `Faça o desenho no ar nos ${SAMPLE_FRAMES} frames. Dedos iguais o tempo todo; só posição e trajetória mudam.`
+                      : `Mantenha a mão dentro do quadro durante toda a gravação.`}
                   </p>
                 </div>
 

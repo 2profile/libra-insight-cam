@@ -1,32 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { framesToFeatures, SAMPLE_FRAMES, selfCheck } from "../src/lib/landmark-features.mjs";
 
-const SAMPLE_FRAMES = 30;
 const OUTPUT_PATH = "public/models/landmark-centroids.json";
-
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-
-function normalizeLandmarks(landmarks) {
-  const wrist = landmarks[0];
-  const scale = Math.max(distance(landmarks[5], landmarks[17]), 0.0001);
-  return landmarks.flatMap((point) => [
-    (point.x - wrist.x) / scale,
-    (point.y - wrist.y) / scale,
-    (point.z - wrist.z) / scale,
-  ]);
-}
-
-function sampleToFeatures(sample) {
-  const frames = sample.frames.slice(0, SAMPLE_FRAMES);
-  const vectors = frames.map((frame) => normalizeLandmarks(frame.landmarks));
-  const size = vectors[0].length;
-  return Array.from({ length: size }, (_, index) => {
-    const total = vectors.reduce((sum, vector) => sum + vector[index], 0);
-    return total / vectors.length;
-  });
-}
 
 function squaredDistance(a, b) {
   return a.reduce((sum, value, index) => sum + (value - b[index]) ** 2, 0);
@@ -74,7 +50,7 @@ function loadSamples(files) {
     return data.samples.map((sample) => ({
       ...sample,
       sourceFile: file,
-      features: sampleToFeatures(sample),
+        features: framesToFeatures(sample.frames),
     }));
   });
 }
@@ -126,7 +102,7 @@ function trainKnn(samples) {
   const labels = [...groupByLabel(samples).keys()].sort();
   return {
     kind: "knn-landmark-classifier",
-    version: 2,
+    version: 3,
     createdAt: new Date().toISOString(),
     frameCount: SAMPLE_FRAMES,
     featureCount: samples[0]?.features.length ?? 0,
@@ -161,6 +137,8 @@ function evaluate(model, samples, predictSample) {
     matrix,
   };
 }
+
+selfCheck();
 
 const files = process.argv.slice(2);
 

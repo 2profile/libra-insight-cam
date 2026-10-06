@@ -31,4 +31,6 @@ L-joao-2026-06-16.json
 3. Mova arquivos bons para `datasets/approved/`.
 4. Rode `npm run train:landmarks -- datasets/approved/*.json`.
 
+Letras com movimento (J, Z): grave o gesto completo nos 90 frames (~3s). JSON antigo de 30 frames continua válido. Pose parada não treina o path.
+
 Arquivos em `Downloads/` tambem podem ser validados diretamente.

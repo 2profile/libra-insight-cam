@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { MIN_FRAMES, SAMPLE_FRAMES } from "../src/lib/landmark-features.mjs";
 
-const EXPECTED_FRAMES = 30;
 const EXPECTED_LANDMARKS = 21;
 
 function collectJsonFiles(targets) {
@@ -49,9 +49,9 @@ function validateFile(file) {
       errors.push(`sample ${sampleIndex}: frames missing`);
       continue;
     }
-    if (sample.frames.length !== EXPECTED_FRAMES) {
+    if (sample.frames.length < MIN_FRAMES || sample.frames.length > SAMPLE_FRAMES) {
       errors.push(
-        `sample ${sampleIndex}: expected ${EXPECTED_FRAMES} frames, got ${sample.frames.length}`,
+        `sample ${sampleIndex}: expected ${MIN_FRAMES}-${SAMPLE_FRAMES} frames, got ${sample.frames.length}`,
       );
     }
 
