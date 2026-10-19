@@ -210,7 +210,6 @@ function LandmarkGuide({ features, label }: { features?: number[]; label: string
 }
 
 function predictWithModel(model: LandmarkModel, features: number[]): ModelPrediction | null {
-
   if (model.prototypes?.length) {
     const neighbors = model.prototypes
       .map((prototype) => ({
@@ -300,6 +299,9 @@ function PraticarPage() {
   const modelRef = useRef<LandmarkModel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const frameBufferRef = useRef<Array<{ landmarks: Landmark[] }>>([]);
+  const lastDetectionRef = useRef(0);
+  const lastPredictionRef = useRef(0);
+  const predictionRef = useRef<ModelPrediction | null>(null);
 
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
   const [error, setError] = useState<string>("");
@@ -317,6 +319,9 @@ function PraticarPage() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     frameBufferRef.current = [];
+    lastDetectionRef.current = 0;
+    lastPredictionRef.current = 0;
+    predictionRef.current = null;
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx && canvasRef.current)
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -341,7 +346,7 @@ function PraticarPage() {
   }, [status]);
 
   useEffect(() => {
-    fetch(`/models/landmark-centroids.json?v=${Date.now()}`, { cache: "no-store" })
+    fetch("/models/landmark-centroids.json")
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         modelRef.current = data;
@@ -413,50 +418,63 @@ function PraticarPage() {
     if (!video || !canvas || !landmarker) return;
 
     if (video.videoWidth) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const result = landmarker.detectForVideo(video, performance.now());
-      const hands = result.landmarks ?? [];
-      setHandsCount(hands.length);
-      setFingers(hands.length ? countFingers(hands[0]) : null);
-      if (hands.length) {
-        const buffer = frameBufferRef.current;
-        buffer.push({ landmarks: hands[0] });
-        if (buffer.length > SAMPLE_FRAMES) buffer.shift();
-        const prediction =
-          modelRef.current && buffer.length >= MIN_FRAMES
-            ? predictWithModel(modelRef.current, framesToFeatures(buffer))
-            : null;
-        const shapeLetter = classifyLetter(hands[0]);
-        setLetter(
-          shapeLetter === "U" || shapeLetter === "V"
-            ? shapeLetter
-            : (prediction?.label ?? shapeLetter),
-        );
-        setModelConfidence(prediction?.confidence ?? null);
-      } else {
-        frameBufferRef.current = [];
-        setLetter(null);
-        setModelConfidence(null);
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
 
-      for (const lm of hands) {
-        ctx.strokeStyle = "rgba(255,255,255,0.85)";
-        ctx.lineWidth = 3;
-        for (const [a, b] of HAND_CONNECTIONS) {
-          ctx.beginPath();
-          ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
-          ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
-          ctx.stroke();
+      const now = performance.now();
+      if (now - lastDetectionRef.current >= 33) {
+        lastDetectionRef.current = now;
+        const ctx = canvas.getContext("2d")!;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const result = landmarker.detectForVideo(video, now);
+        const hands = result.landmarks ?? [];
+        setHandsCount(hands.length);
+        setFingers(hands.length ? countFingers(hands[0]) : null);
+        if (hands.length) {
+          const buffer = frameBufferRef.current;
+          buffer.push({ landmarks: hands[0] });
+          if (buffer.length > SAMPLE_FRAMES) buffer.shift();
+          if (
+            modelRef.current &&
+            buffer.length >= MIN_FRAMES &&
+            now - lastPredictionRef.current >= 120
+          ) {
+            lastPredictionRef.current = now;
+            predictionRef.current = predictWithModel(modelRef.current, framesToFeatures(buffer));
+          }
+          const shapeLetter = classifyLetter(hands[0]);
+          const prediction = predictionRef.current;
+          setLetter(
+            shapeLetter === "U" || shapeLetter === "V"
+              ? shapeLetter
+              : (prediction?.label ?? shapeLetter),
+          );
+          setModelConfidence(prediction?.confidence ?? null);
+        } else {
+          frameBufferRef.current = [];
+          predictionRef.current = null;
+          setLetter(null);
+          setModelConfidence(null);
         }
-        for (const p of lm) {
-          ctx.beginPath();
-          ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
-          ctx.fillStyle = "#f5a623";
-          ctx.fill();
+
+        for (const lm of hands) {
+          ctx.strokeStyle = "rgba(255,255,255,0.85)";
+          ctx.lineWidth = 3;
+          for (const [a, b] of HAND_CONNECTIONS) {
+            ctx.beginPath();
+            ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
+            ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
+            ctx.stroke();
+          }
+          for (const p of lm) {
+            ctx.beginPath();
+            ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
+            ctx.fillStyle = "#f5a623";
+            ctx.fill();
+          }
         }
       }
     }

@@ -1,12 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Database, Hand, Menu } from "lucide-react";
+import { Database, Hand, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetClose,
@@ -55,26 +49,11 @@ export function Header() {
               {l.label}
             </Link>
           ))}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="rounded-full text-muted-foreground">
-                Mais <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-elegant">
-              <DropdownMenuItem asChild className="rounded-xl p-3">
-                <Link to="/coletar" className="cursor-pointer">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
-                    <Database className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className="block font-semibold">Coletar dados</span>
-                    <span className="text-xs text-muted-foreground">Ferramenta do projeto</span>
-                  </span>
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button asChild variant="ghost" className="rounded-full text-muted-foreground">
+            <Link to="/coletar">
+              <Database className="h-4 w-4" /> Coletar dados
+            </Link>
+          </Button>
         </nav>
 
         <Sheet>

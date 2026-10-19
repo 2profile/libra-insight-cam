@@ -110,6 +110,7 @@ function ColetarPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const currentFramesRef = useRef<DatasetFrame[]>([]);
   const recordingRef = useRef(false);
+  const lastDetectionRef = useRef(0);
   const labelRef = useRef("A");
 
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
@@ -129,6 +130,7 @@ function ColetarPage() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     recordingRef.current = false;
+    lastDetectionRef.current = 0;
     currentFramesRef.current = [];
     setRecording(false);
     setCapturedFrames(0);
@@ -175,45 +177,52 @@ function ColetarPage() {
     if (!video || !canvas || !landmarker) return;
 
     if (video.videoWidth) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const result = landmarker.detectForVideo(video, performance.now());
-      const hands = result.landmarks ?? [];
-      const hand = getPrimaryHand(result);
-      setHandsCount(hands.length);
-
-      if (hand && recordingRef.current) {
-        const frames = [
-          ...currentFramesRef.current,
-          {
-            t: performance.now(),
-            landmarks: hand.landmarks,
-            handedness: hand.handedness,
-            score: hand.score,
-          },
-        ];
-        currentFramesRef.current = frames;
-        setCapturedFrames(frames.length);
-        if (frames.length >= SAMPLE_FRAMES) finishSample(frames);
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
 
-      for (const lm of hands) {
-        ctx.strokeStyle = "rgba(255,255,255,0.85)";
-        ctx.lineWidth = 3;
-        for (const [a, b] of HAND_CONNECTIONS) {
-          ctx.beginPath();
-          ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
-          ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
-          ctx.stroke();
+      const now = performance.now();
+      if (now - lastDetectionRef.current >= 33) {
+        lastDetectionRef.current = now;
+        const ctx = canvas.getContext("2d")!;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const result = landmarker.detectForVideo(video, now);
+        const hands = result.landmarks ?? [];
+        const hand = getPrimaryHand(result);
+        setHandsCount(hands.length);
+
+        if (hand && recordingRef.current) {
+          const frames = [
+            ...currentFramesRef.current,
+            {
+              t: now,
+              landmarks: hand.landmarks,
+              handedness: hand.handedness,
+              score: hand.score,
+            },
+          ];
+          currentFramesRef.current = frames;
+          setCapturedFrames(frames.length);
+          if (frames.length >= SAMPLE_FRAMES) finishSample(frames);
         }
-        for (const p of lm) {
-          ctx.beginPath();
-          ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
-          ctx.fillStyle = "#f5a623";
-          ctx.fill();
+
+        for (const lm of hands) {
+          ctx.strokeStyle = "rgba(255,255,255,0.85)";
+          ctx.lineWidth = 3;
+          for (const [a, b] of HAND_CONNECTIONS) {
+            ctx.beginPath();
+            ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
+            ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
+            ctx.stroke();
+          }
+          for (const p of lm) {
+            ctx.beginPath();
+            ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
+            ctx.fillStyle = "#f5a623";
+            ctx.fill();
+          }
         }
       }
     }
