@@ -286,6 +286,13 @@ function ColetarPage() {
     setCapturedFrames(0);
   };
 
+  const cancelRecording = () => {
+    currentFramesRef.current = [];
+    recordingRef.current = false;
+    setRecording(false);
+    setCapturedFrames(0);
+  };
+
   const samplesByLabel = samples.reduce<Record<string, number>>((acc, sample) => {
     acc[sample.label] = (acc[sample.label] ?? 0) + 1;
     return acc;
@@ -429,10 +436,10 @@ function ColetarPage() {
                     </Button>
                     <Button
                       variant={recording ? "warm" : "hero"}
-                      onClick={startRecording}
-                      disabled={recording}
+                      onClick={recording ? cancelRecording : startRecording}
                     >
-                      <Radio className="h-4 w-4" /> {recording ? "Gravando…" : "Gravar amostra"}
+                      <Radio className="h-4 w-4" />
+                      {recording ? "Cancelar gravação" : "Gravar amostra"}
                     </Button>
                   </div>
                 )}

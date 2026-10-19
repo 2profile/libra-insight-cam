@@ -56,47 +56,54 @@ export function Header() {
           </Button>
         </nav>
 
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden" aria-label="Abrir menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="w-[88%] border-l-0 p-6 sm:max-w-sm">
-            <SheetHeader className="pr-8 text-left">
-              <SheetTitle className="flex items-center gap-3 text-xl">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-navy text-primary">
-                  <Hand className="h-5 w-5" />
-                </span>
-                Mãos que Falam
-              </SheetTitle>
-              <SheetDescription>Aprenda, pratique e acompanhe seus sinais.</SheetDescription>
-            </SheetHeader>
-            <nav className="mt-8 grid gap-2" aria-label="Navegação móvel">
-              {[...links, { to: "/coletar", label: "Coletar dados" } as const].map((l) => (
-                <SheetClose asChild key={l.to}>
-                  <Link
-                    to={l.to}
-                    className="rounded-2xl px-4 py-3.5 text-base font-semibold text-foreground hover:bg-secondary"
-                    activeProps={{
-                      className:
-                        "rounded-2xl bg-secondary px-4 py-3.5 text-base font-semibold text-secondary-foreground",
-                    }}
-                    activeOptions={{ exact: l.to === "/" }}
-                  >
-                    {l.label}
-                  </Link>
-                </SheetClose>
-              ))}
-            </nav>
-            <div className="absolute inset-x-6 bottom-6 rounded-2xl bg-navy p-5 text-white">
-              <p className="text-sm font-semibold">Pratique direto no navegador</p>
-              <p className="mt-1 text-xs leading-relaxed text-white/65">
-                Sua imagem não é enviada para servidores.
-              </p>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-1 md:hidden">
+          <Button asChild variant="ghost" size="icon" aria-label="Coletar dados">
+            <Link to="/coletar">
+              <Database className="h-5 w-5" />
+            </Link>
+          </Button>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Abrir menu">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[88%] border-l-0 p-6 sm:max-w-sm">
+              <SheetHeader className="pr-8 text-left">
+                <SheetTitle className="flex items-center gap-3 text-xl">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-navy text-primary">
+                    <Hand className="h-5 w-5" />
+                  </span>
+                  Mãos que Falam
+                </SheetTitle>
+                <SheetDescription>Aprenda, pratique e acompanhe seus sinais.</SheetDescription>
+              </SheetHeader>
+              <nav className="mt-8 grid gap-2" aria-label="Navegação móvel">
+                {links.map((l) => (
+                  <SheetClose asChild key={l.to}>
+                    <Link
+                      to={l.to}
+                      className="rounded-2xl px-4 py-3.5 text-base font-semibold text-foreground hover:bg-secondary"
+                      activeProps={{
+                        className:
+                          "rounded-2xl bg-secondary px-4 py-3.5 text-base font-semibold text-secondary-foreground",
+                      }}
+                      activeOptions={{ exact: l.to === "/" }}
+                    >
+                      {l.label}
+                    </Link>
+                  </SheetClose>
+                ))}
+              </nav>
+              <div className="absolute inset-x-6 bottom-6 rounded-2xl bg-navy p-5 text-white">
+                <p className="text-sm font-semibold">Pratique direto no navegador</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/65">
+                  Sua imagem não é enviada para servidores.
+                </p>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
