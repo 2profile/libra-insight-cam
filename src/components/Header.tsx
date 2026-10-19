@@ -1,15 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { Database, Hand, Menu } from "lucide-react";
+import { Database, Hand, Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 
 const links = [
   { to: "/", label: "Início" },
@@ -20,6 +12,24 @@ const navClass =
   "rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground";
 
 export function Header() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -62,27 +72,58 @@ export function Header() {
               <Database className="h-5 w-5" />
             </Link>
           </Button>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Abrir menu">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-[88%] border-l-0 p-6 sm:max-w-sm">
-              <SheetHeader className="pr-8 text-left">
-                <SheetTitle className="flex items-center gap-3 text-xl">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+          {menuOpen && (
+            <div className="fixed inset-0 z-[60] md:hidden" role="presentation">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/50"
+                aria-label="Fechar menu"
+                onClick={() => setMenuOpen(false)}
+              />
+              <aside
+                id="mobile-menu"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="mobile-menu-title"
+                className="relative z-10 ml-auto flex h-full w-[88%] max-w-sm flex-col bg-background p-6 shadow-lg"
+              >
+                <button
+                  type="button"
+                  className="absolute right-4 top-4 rounded-sm p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  aria-label="Fechar menu"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <div className="flex items-center gap-3 pr-8">
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-navy text-primary">
                     <Hand className="h-5 w-5" />
                   </span>
-                  Mãos que Falam
-                </SheetTitle>
-                <SheetDescription>Aprenda, pratique e acompanhe seus sinais.</SheetDescription>
-              </SheetHeader>
-              <nav className="mt-8 grid gap-2" aria-label="Navegação móvel">
-                {links.map((l) => (
-                  <SheetClose asChild key={l.to}>
+                  <div>
+                    <h2 id="mobile-menu-title" className="text-xl font-semibold text-foreground">
+                      Mãos que Falam
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Aprenda, pratique e acompanhe seus sinais.
+                    </p>
+                  </div>
+                </div>
+                <nav className="mt-8 grid gap-2" aria-label="Navegação móvel">
+                  {[...links, { to: "/coletar", label: "Coletar dados" } as const].map((l) => (
                     <Link
+                      key={l.to}
                       to={l.to}
+                      onClick={() => setMenuOpen(false)}
                       className="rounded-2xl px-4 py-3.5 text-base font-semibold text-foreground hover:bg-secondary"
                       activeProps={{
                         className:
@@ -92,17 +133,17 @@ export function Header() {
                     >
                       {l.label}
                     </Link>
-                  </SheetClose>
-                ))}
-              </nav>
-              <div className="absolute inset-x-6 bottom-6 rounded-2xl bg-navy p-5 text-white">
-                <p className="text-sm font-semibold">Pratique direto no navegador</p>
-                <p className="mt-1 text-xs leading-relaxed text-white/65">
-                  Sua imagem não é enviada para servidores.
-                </p>
-              </div>
-            </SheetContent>
-          </Sheet>
+                  ))}
+                </nav>
+                <div className="mt-auto rounded-2xl bg-navy p-5 text-white">
+                  <p className="text-sm font-semibold">Pratique direto no navegador</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/65">
+                    Sua imagem não é enviada para servidores.
+                  </p>
+                </div>
+              </aside>
+            </div>
+          )}
         </div>
       </div>
     </header>
