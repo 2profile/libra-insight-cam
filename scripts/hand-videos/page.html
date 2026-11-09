@@ -1,0 +1,119 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;width:640px;height:640px;overflow:hidden}
+  body{background:radial-gradient(circle at 50% 42%, oklch(0.32 0.07 235) 0%, oklch(0.22 0.07 242) 62%, oklch(0.18 0.06 245) 100%)}
+  canvas{position:absolute;inset:0}
+  #l{position:absolute;left:30px;top:18px;font:900 92px/1 system-ui,sans-serif;color:oklch(0.72 0.13 184);letter-spacing:-2px}
+</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+</head><body><div id="l"></div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const W = 640;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(W, W); renderer.setPixelRatio(1);
+renderer.setClearColor(0, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(24, 1, 0.01, 10);
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x2a1a22, 1.25));
+const key = new THREE.DirectionalLight(0xfff1e4, 2.5);
+key.position.set(0.35, 0.6, 1); key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+Object.assign(key.shadow.camera, { left: -.3, right: .3, top: .3, bottom: -.3, near: .1, far: 3 });
+key.shadow.bias = -0.0006; key.shadow.normalBias = 0.002;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x4fe0d2, 1.4); rim.position.set(-0.7, 0.2, -0.6); scene.add(rim);
+
+let hand, bones = [], arm, data;
+const rig = new THREE.Group(); scene.add(rig);
+
+window.setup = async (tl) => {
+  data = tl;
+  document.getElementById("l").textContent = tl.letter;
+  const g = await new GLTFLoader().loadAsync("/hand/right.glb");
+  rig.add(g.scene);
+  const skin = new THREE.MeshPhysicalMaterial({ color: 0xd9a07f, roughness: 0.62, sheen: 0.5, sheenColor: new THREE.Color(0xff9f85), sheenRoughness: 0.6 });
+  g.scene.traverse((o) => { if (o.isSkinnedMesh) { o.material = skin; o.frustumCulled = false; o.castShadow = o.receiveShadow = true; hand = o; } });
+  bones = tl.bones.map((n) => g.scene.getObjectByName(n));
+  if (bones.some((b) => !b)) throw new Error("missing bone");
+
+  // forearm: elliptical tube sized from the mesh's own cross-section at the wrist joint,
+  // parented to the wrist bone and starting inside the hand so the join is hidden
+  const wristBone = g.scene.getObjectByName("wrist");
+  const midBone = g.scene.getObjectByName("middle-finger-phalanx-proximal");
+  const idxBone = g.scene.getObjectByName("index-finger-phalanx-proximal");
+  const pkyBone = g.scene.getObjectByName("pinky-finger-phalanx-proximal");
+  const pos = hand.geometry.attributes.position;
+  g.scene.updateMatrixWorld(true);
+  const inv = wristBone.matrixWorld.clone().invert();
+  const local = (o) => o.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv);
+  const axis = local(midBone).negate().normalize();
+  const uRaw = local(idxBone).sub(local(pkyBone));
+  const u = uRaw.addScaledVector(axis, -uRaw.dot(axis)).normalize();
+  const v = axis.clone().cross(u).normalize();
+  let umin = 1e9, umax = -1e9, vmin = 1e9, vmax = -1e9, hits = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(inv);
+    if (Math.abs(p.dot(axis)) > 0.007) continue;
+    hits++;
+    const a = p.dot(u), b = p.dot(v);
+    umin = Math.min(umin, a); umax = Math.max(umax, a); vmin = Math.min(vmin, b); vmax = Math.max(vmax, b);
+  }
+  if (hits < 8) throw new Error("wrist section not found: " + hits);
+  const cu = (umin + umax) / 2, cv = (vmin + vmax) / 2, ru = (umax - umin) / 2, rv = (vmax - vmin) / 2;
+  const SEG = 56, RINGS = 10, LEN = 0.3, verts = [], norms = [], ix = [];
+  for (let r = 0; r <= RINGS; r++) {
+    const t = r / RINGS, sc = 0.985 + 0.24 * t;
+    for (let i = 0; i < SEG; i++) {
+      const th = (i / SEG) * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
+      const P = u.clone().multiplyScalar(cu + ru * sc * cs).addScaledVector(v, cv + rv * sc * sn).addScaledVector(axis, -0.002 + LEN * t);
+      verts.push(P.x, P.y, P.z);
+      const N = u.clone().multiplyScalar(cs / ru).addScaledVector(v, sn / rv).normalize();
+      norms.push(N.x, N.y, N.z);
+    }
+  }
+  for (let r = 0; r < RINGS; r++) for (let i = 0; i < SEG; i++) {
+    const a = r * SEG + i, b = r * SEG + (i + 1) % SEG, c = a + SEG, d = b + SEG;
+    ix.push(a, b, c, b, d, c);
+  }
+  const am = new THREE.BufferGeometry();
+  am.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  am.setAttribute("normal", new THREE.Float32BufferAttribute(norms, 3));
+  am.setIndex(ix);
+  const armSkin = skin;
+  arm = new THREE.Mesh(am, armSkin); arm.castShadow = arm.receiveShadow = true; arm.frustumCulled = false;
+  wristBone.add(arm);
+
+  // frame camera on every pose in the clip
+  const box = new THREE.Box3();
+  for (const f of tl.frames) for (const p of f.p) box.expandByPoint(new THREE.Vector3(...p));
+  const c = box.getCenter(new THREE.Vector3());
+  const s = box.getSize(new THREE.Vector3());
+  rig.position.copy(c).negate();
+  const R = Math.max(s.x, s.y, s.z) * 0.62;
+  camera.position.set(0, 0, R / Math.tan((camera.fov * Math.PI) / 360));
+  camera.lookAt(0, 0, 0);
+  window.__center = c.toArray(); window.__R = R;
+  return tl.frames.length;
+};
+const q = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
+window.draw = (i) => {
+  const f = data.frames[i];
+  bones.forEach((b, j) => { b.position.set(...f.p[j]); b.quaternion.set(...f.q[j]); });
+  rig.rotation.y = f.yaw;
+  rig.position.set(0, 0, 0); rig.updateMatrixWorld();
+  const c = new THREE.Vector3(...window.__center).applyAxisAngle(UP, f.yaw);
+  rig.position.copy(c).negate();
+  renderer.render(scene, camera);
+};
+window.ready = true;
+</script></body></html>

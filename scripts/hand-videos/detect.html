@@ -1,0 +1,14 @@
+<!doctype html><script type="module">
+import { FilesetResolver, HandLandmarker } from "/mp/vision_bundle.mjs";
+const v = await FilesetResolver.forVisionTasks("/mp/wasm");
+const h = await HandLandmarker.createFromOptions(v, { baseOptions: { modelAssetPath: "/model/hand_landmarker.task", delegate: "CPU" }, runningMode: "IMAGE", numHands: 1, minHandDetectionConfidence: 0.3, minHandPresenceConfidence: 0.3 });
+window.detect = async (u) => { const i = new Image(); i.src = u; await i.decode(); const c = document.createElement("canvas"); c.width = 640; c.height = 480;
+  const g = c.getContext("2d"); let r = { landmarks: [] };
+  for (const s of [330, 270, 400, 220, 470]) {
+    g.fillStyle = "#123"; g.fillRect(0, 0, 640, 480);
+    g.drawImage(i, (640 - s) / 2, (480 - s) / 2, s, s);
+    r = h.detect(c); if (r.landmarks.length) break;
+  }
+  if (!r.landmarks.length) return null; return { lm: r.landmarks[0].map((p) => ({ x: p.x, y: p.y, z: p.z })), h: r.handedness[0][0].categoryName }; };
+window.ok = true;
+</script>
