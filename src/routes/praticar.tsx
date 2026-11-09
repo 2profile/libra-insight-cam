@@ -106,6 +106,10 @@ const TRAINED_LABELS = [
   "U",
   "V",
 ];
+
+// Letras com vídeo 3D em public/videos/libras/<letra>.{webm,mp4}
+const GUIDE_VIDEOS = new Set(["A", "J", "L", "S", "U", "V"]);
+
 function distance(a: Landmark, b: Landmark): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -161,7 +165,36 @@ function projectGuidePoints(features: number[]): GuidePoint[] {
   }));
 }
 
+function GuideVideo({ label }: { label: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) videoRef.current?.pause();
+  }, []);
+
+  return (
+    <div className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-[1.75rem] bg-navy">
+      <video
+        ref={videoRef}
+        className="h-full w-full object-cover"
+        aria-label={`Mão 3D formando a letra ${label} em Libras`}
+        autoPlay
+        muted
+        loop
+        playsInline
+        controls
+        preload="metadata"
+      >
+        <source src={`/videos/libras/${label}.webm`} type="video/webm" />
+        <source src={`/videos/libras/${label}.mp4`} type="video/mp4" />
+      </video>
+    </div>
+  );
+}
+
 function LandmarkGuide({ features, label }: { features?: number[]; label: string }) {
+  if (GUIDE_VIDEOS.has(label)) return <GuideVideo key={label} label={label} />;
+
   const points = features ? projectGuidePoints(features) : [];
 
   return (
@@ -695,7 +728,9 @@ function PraticarPage() {
                         {guideSign?.description ?? "Descrição indisponível para esta letra."}
                       </p>
                       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                        O desenho usa uma amostra representativa do conjunto que treinou o modelo.
+                        {GUIDE_VIDEOS.has(guideLetter)
+                          ? "O vídeo mostra uma mão direita 3D criada a partir do conjunto que treinou o modelo, com ajustes na posição dos dedos."
+                          : "O desenho usa uma amostra representativa do conjunto que treinou o modelo."}{" "}
                         Use-o como referência de posição e orientação da mão.
                       </p>
                       {activeSign && (
