@@ -158,6 +158,16 @@ const SPEC = {
   V: { closed: ["ring", "pinky"], thumb: "front", thumbOver: "ring" },
   S: { closed: ["index", "middle", "ring", "pinky"], thumb: "front", thumbOver: "middle" },
   J: { closed: ["index", "middle", "ring"], thumb: "front", thumbOver: "middle", thumbLock: true },
+  // B e C: conferidos com os cartões do alfabeto enviados pelo usuário
+  B: {
+    straight: ["index", "middle", "ring", "pinky"],
+    parallel: ["index", "middle", "ring", "pinky"],
+    converge: 0.32,
+  },
+  C: { parallel: ["index", "middle", "ring", "pinky"], converge: 0.2 },
+  // F: conferido com a foto enviada pelo usuário: indicador em gancho tocando o meio do polegar,
+  // polegar esticado para cima e para fora
+  F: { thumbStraight: true },
 };
 const cpSeg = (p, a, b) => {
   const ab = b.clone().sub(a);
@@ -279,14 +289,24 @@ function solve(T) {
           return sum.add(dir(m[0], m[1]));
         }, new V())
         .normalize();
+      // this rig's knuckles are wider apart than its fingers are thick: converge a little
+      // toward the group's centre so neighbouring fingers touch
+      const knuckle = (name) => restP[CHAIN[name][1]].clone().applyQuaternion(qPalm);
+      const centre = currentSpec.parallel
+        .reduce((sum, name) => sum.add(knuckle(name)), new V())
+        .divideScalar(currentSpec.parallel.length);
+      const len = restP[c[4]].distanceTo(restP[c[1]]);
+      d.addScaledVector(centre.sub(knuckle(f)), (currentSpec.converge ?? 0) / len).normalize();
     }
     const isClosed = (currentSpec.closed ?? []).includes(f);
     let alpha = clampCount(Math.asin(clamp(d.dot(e.s), -1, 1)), -22 * DEG, 22 * DEG);
     let phi = clampCount(Math.atan2(d.dot(e.p), d.dot(e.a)), -18 * DEG, 100 * DEG);
+    const isStraight = (currentSpec.straight ?? []).includes(f);
     if (isClosed) {
       alpha *= 0.2;
       phi = Math.max(phi, (currentSpec.closedPhi ?? 74) * DEG);
     }
+    if (isStraight) phi = Math.min(phi, 4 * DEG);
     quats[c[1]] = q0.clone().multiply(rot(X, -phi)).multiply(rot(Y, -alpha));
     // PIP / DIP: hinge
     for (const [i, a, b, lim] of [
@@ -298,6 +318,7 @@ function solve(T) {
       d = dir(a, b);
       let fl = clampCount(Math.atan2(d.dot(e.p), d.dot(e.a)), -4 * DEG, lim * DEG);
       if (isClosed) fl = Math.max(fl, (i === 2 ? 98 : 52) * DEG);
+      if (isStraight) fl = Math.min(fl, 4 * DEG);
       quats[c[i]] = qi.clone().multiply(rot(X, -fl));
     }
     quats[c[4]] = quats[c[3]].clone().multiply(delta(c[4]));
@@ -312,7 +333,9 @@ function solve(T) {
   ].forEach(([a, b], i) => {
     const q0 = parent.clone().multiply(delta(c[i]));
     const cur = new V(0, 0, -1).applyQuaternion(q0);
-    const swing = new Q().setFromUnitVectors(cur, dir(a, b));
+    // thumbStraight: proximal and distal follow the MCP→tip line, so the thumb stays extended
+    const target = currentSpec.thumbStraight && i > 0 ? dir(2, 4) : dir(a, b);
+    const swing = new Q().setFromUnitVectors(cur, target);
     quats[c[i]] = swing.multiply(q0).normalize();
     parent = quats[c[i]];
   });

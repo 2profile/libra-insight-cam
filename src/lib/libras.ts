@@ -16,7 +16,11 @@ export const alphabet: Sign[] = [
   { letter: "C", description: "Mão curvada formando a letra C." },
   { letter: "D", description: "Indicador apontando para cima, demais dedos tocando o polegar." },
   { letter: "E", description: "Dedos dobrados sobre a palma, pontas tocando o polegar." },
-  { letter: "F", description: "Indicador e polegar unidos em círculo, demais dedos estendidos." },
+  {
+    letter: "F",
+    description:
+      "Indicador dobrado em gancho tocando o polegar, que fica estendido para cima; demais dedos estendidos.",
+  },
   { letter: "G", description: "Indicador e polegar estendidos na horizontal, formando um G." },
   { letter: "H", description: "Indicador e médio estendidos juntos na horizontal." },
   { letter: "I", description: "Mão fechada com o dedo mínimo estendido para cima." },
