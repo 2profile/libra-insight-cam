@@ -156,6 +156,8 @@ const SPEC = {
     parallel: ["index", "middle"],
   },
   V: { closed: ["ring", "pinky"], thumb: "front", thumbOver: "ring" },
+  // W: versão escolhida pelo usuário: mínimo fechado com o polegar por cima
+  W: { closed: ["pinky"], thumb: "front", thumbOver: "pinky" },
   S: { closed: ["index", "middle", "ring", "pinky"], thumb: "front", thumbOver: "middle" },
   J: { closed: ["index", "middle", "ring"], thumb: "front", thumbOver: "middle", thumbLock: true },
   // B e C: conferidos com os cartões do alfabeto enviados pelo usuário
