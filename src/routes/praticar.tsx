@@ -108,7 +108,29 @@ const TRAINED_LABELS = [
 ];
 
 // Letras com vídeo 3D em public/videos/libras/<letra>.{webm,mp4}
-const GUIDE_VIDEOS = new Set(["A", "B", "C", "F", "J", "L", "S", "U", "V", "W"]);
+const GUIDE_VIDEOS = new Set([
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "I",
+  "J",
+  "L",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
+  "W",
+  "Z",
+]);
 
 function distance(a: Landmark, b: Landmark): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
