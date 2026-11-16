@@ -170,6 +170,35 @@ const SPEC = {
   // F: conferido com a foto enviada pelo usuário: indicador em gancho tocando o meio do polegar,
   // polegar esticado para cima e para fora
   F: { thumbStraight: true },
+  // D: conferido com a foto enviada pelo usuário: indicador reto para cima; médio, anelar e mínimo
+  // curvados encostando na ponta do polegar, num círculo como o do O
+  D: {
+    straight: ["index"],
+    borrow: { letter: "O", fingers: ["thumb", "middle", "ring", "pinky"] },
+    thumbTouch: "middle",
+  },
+  // M: correção do usuário: só indicador, médio e anelar apontando para baixo
+  M: {
+    closed: ["pinky"],
+    thumb: "front",
+    thumbOver: "pinky",
+    parallel: ["index", "middle", "ring"],
+    converge: 0.25,
+  },
+  // Q: correção do usuário: só o indicador apontando para baixo;
+  // polegar esticado para o lado, conforme a foto enviada
+  Q: { closed: ["middle", "ring", "pinky"] },
+  // Z: correção do usuário: indicador esticado apontando para a frente, desenhando o Z no ar
+  Z: {
+    closed: ["middle", "ring", "pinky"],
+    straight: ["index"],
+    thumb: "front",
+    thumbOver: "middle",
+    thumbLock: true,
+    pointAt: [0, 0.35, 1],
+    // correção do usuário: o traço gravado sai espelhado; o Z deve ser lido por quem assiste
+    mirrorPath: true,
+  },
 };
 const cpSeg = (p, a, b) => {
   const ab = b.clone().sub(a);
@@ -359,6 +388,48 @@ function solve(T) {
     applyThumb(quats, dirs);
   }
   return quats;
+}
+// bends the thumb (FABRIK, base fixed) so its tip meets the tip of `finger`
+function touchThumb(quats, finger) {
+  const pos = fk(quats, new V());
+  const P = CHAIN.thumb.map((j) => pos[j].clone());
+  const lens = [1, 2, 3].map((i) => P[i].distanceTo(P[i - 1]));
+  const tip = pos[CHAIN[finger][4]];
+  // stop one finger-pad short of the tip, on the side the thumb comes from
+  const goal = tip
+    .clone()
+    .addScaledVector(P[1].clone().sub(tip).normalize(), FINGER_R + THUMB_R * 0.5);
+  const base = P[0].clone();
+  for (let it = 0; it < 40; it++) {
+    P[3].copy(goal);
+    for (let i = 2; i >= 0; i--)
+      P[i] = P[i + 1].clone().addScaledVector(
+        P[i]
+          .clone()
+          .sub(P[i + 1])
+          .normalize(),
+        lens[i],
+      );
+    P[0].copy(base);
+    for (let i = 1; i <= 3; i++)
+      P[i] = P[i - 1].clone().addScaledVector(
+        P[i]
+          .clone()
+          .sub(P[i - 1])
+          .normalize(),
+        lens[i - 1],
+      );
+  }
+  applyThumb(
+    quats,
+    [1, 2, 3].map((i) =>
+      P[i]
+        .clone()
+        .sub(P[i - 1])
+        .normalize(),
+    ),
+  );
+  return fk(quats, new V())[CHAIN.thumb[3]].distanceTo(tip);
 }
 function fk(quats, wrist) {
   const pos = Array(25);
@@ -562,6 +633,18 @@ function staticTimeline(letter) {
   const T = staticTarget(letter);
   const pose = solve(T);
   console.log(letter, "residual deg", residual(pose, T));
+  const b = currentSpec.borrow;
+  if (b) {
+    // copy those fingers from another letter's solved pose, relative to the palm
+    const own = currentSpec;
+    currentSpec = SPEC[b.letter] ?? {};
+    const other = solve(staticTarget(b.letter));
+    currentSpec = own;
+    const toOwn = pose[idx.wrist].clone().multiply(other[idx.wrist].clone().invert());
+    for (const f of b.fingers) for (const j of CHAIN[f]) pose[j] = toOwn.clone().multiply(other[j]);
+  }
+  if (currentSpec.thumbTouch)
+    console.log(letter, "thumb tip gap m", touchThumb(pose, currentSpec.thumbTouch).toFixed(4));
   const N = neutralPose();
   const fr = [];
   const sec = (s) => Math.round(s * FPS);
@@ -587,6 +670,30 @@ function motionTimeline(letter) {
     const rel = CHAIN.thumb.map((j) => wr.clone().multiply(ref[j]));
     for (const p of poses)
       CHAIN.thumb.forEach((j, i) => (p[j] = p[idx.wrist].clone().multiply(rel[i])));
+  }
+  if (currentSpec.pointAt) {
+    // turn the whole hand about the wrist so the index points along pointAt (+Z faces the camera)
+    const mean = new V();
+    for (const p of poses) {
+      const pos = fk(p, new V());
+      mean.add(pos[CHAIN.index[4]].clone().sub(pos[CHAIN.index[1]]).normalize());
+    }
+    const R = new Q().setFromUnitVectors(
+      mean.normalize(),
+      new V(...currentSpec.pointAt).normalize(),
+    );
+    for (const p of poses) for (let j = 0; j < p.length; j++) p[j] = R.clone().multiply(p[j]);
+  }
+  if (currentSpec.mirrorPath) {
+    // mirror the gesture left-right while keeping a right hand: mirror the wrist path and turn
+    // each frame so the wrist-to-fingertip direction is mirrored too (the tip traces the mirror)
+    for (const p of poses) {
+      const pos = fk(p, new V());
+      const u = pos[CHAIN.index[4]].clone().normalize();
+      const fix = new Q().setFromUnitVectors(u, new V(-u.x, u.y, u.z));
+      for (let j = 0; j < p.length; j++) p[j] = fix.clone().multiply(p[j]);
+    }
+    for (const x of m) x.W.x *= -1;
   }
   console.log(letter, "residual deg (first frame)", residual(poses[0], m[0].T));
   const N = neutralPose();

@@ -44,6 +44,10 @@ As correções ficam em `SPEC`, no `solve.mjs`. Uma câmera só achata a profund
 | `thumbLift`     | Altura do polegar acima do dedo, em metros                                            |
 | `thumbLock`     | Mantém o polegar fixo em relação à palma durante o gesto                              |
 | `thumbStraight` | Polegar esticado, sem dobrar nas juntas (F)                                           |
+| `borrow`        | Copia de outra letra a pose de alguns dedos, em relação à palma (D usa a curva do O)  |
+| `thumbTouch`    | Leva a ponta do polegar até a ponta do dedo indicado (D: médio)                       |
+| `pointAt`       | Letras com movimento: gira a mão para o indicador apontar nessa direção (Z)           |
+| `mirrorPath`    | Letras com movimento: espelha o traço da esquerda para a direita (Z)                  |
 
 `NOSPEC=1 npm run solve -- A` gera a pose sem correções, útil para comparar.
 
