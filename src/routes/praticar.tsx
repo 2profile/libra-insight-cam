@@ -119,6 +119,7 @@ const GUIDE_VIDEOS = new Set([
   "I",
   "J",
   "L",
+  "M",
   "N",
   "O",
   "P",
