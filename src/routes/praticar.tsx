@@ -130,6 +130,7 @@ const GUIDE_VIDEOS = new Set([
   "U",
   "V",
   "W",
+  "Y",
   "Z",
 ]);
 

@@ -188,6 +188,8 @@ const SPEC = {
   // Q: correção do usuário: só o indicador apontando para baixo;
   // polegar esticado para o lado, conforme a foto enviada
   Q: { closed: ["middle", "ring", "pinky"] },
+  // Y: polegar e mínimo esticados, os outros fechados (conjunto LibraSign, confirmado pelo usuário)
+  Y: { closed: ["index", "middle", "ring"], straight: ["pinky"] },
   // Z: correção do usuário: indicador esticado apontando para a frente, desenhando o Z no ar
   Z: {
     closed: ["middle", "ring", "pinky"],
