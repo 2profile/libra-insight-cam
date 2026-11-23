@@ -354,7 +354,7 @@ function PraticarPage() {
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const modelRef = useRef<LandmarkModel | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const frameBufferRef = useRef<Array<{ landmarks: Landmark[] }>>([]);
+  const frameBufferRef = useRef<Array<{ landmarks: Landmark[]; handedness?: string }>>([]);
   const lastDetectionRef = useRef(0);
   const lastPredictionRef = useRef(0);
   const predictionRef = useRef<ModelPrediction | null>(null);
@@ -491,7 +491,10 @@ function PraticarPage() {
         setFingers(hands.length ? countFingers(hands[0]) : null);
         if (hands.length) {
           const buffer = frameBufferRef.current;
-          buffer.push({ landmarks: hands[0] });
+          buffer.push({
+            landmarks: hands[0],
+            handedness: result.handednesses?.[0]?.[0]?.categoryName,
+          });
           if (buffer.length > SAMPLE_FRAMES) buffer.shift();
           if (
             modelRef.current &&
