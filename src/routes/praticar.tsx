@@ -507,11 +507,7 @@ function PraticarPage() {
           }
           const shapeLetter = classifyLetter(hands[0]);
           const prediction = predictionRef.current;
-          setLetter(
-            shapeLetter === "U" || shapeLetter === "V"
-              ? shapeLetter
-              : (prediction?.label ?? shapeLetter),
-          );
+          setLetter(prediction?.label ?? shapeLetter);
           setModelConfidence(prediction?.confidence ?? null);
         } else {
           frameBufferRef.current = [];

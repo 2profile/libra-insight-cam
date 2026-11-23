@@ -11,6 +11,8 @@ export const FEATURE_DIM: number;
 export const POSE_WEIGHT: number;
 export const SHAPE_WEIGHT: number;
 export const ORIENTATION_WEIGHT: number;
+export const CROSS_WEIGHT: number;
+export const CROSS_DIM: number;
 
 export type Landmark = { x: number; y: number; z: number };
 

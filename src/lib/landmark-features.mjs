@@ -7,7 +7,8 @@ export const PATH_POINTS = 8;
 export const MOTION_DIM = PATH_TIPS.length * PATH_POINTS * 2;
 export const SHAPE_DIM = 15 + 10 + 5 + 4;
 export const ORIENTATION_DIM = 3;
-export const FEATURE_DIM = POSE_DIM + MOTION_DIM + SHAPE_DIM + ORIENTATION_DIM;
+export const CROSS_DIM = 1;
+export const FEATURE_DIM = POSE_DIM + MOTION_DIM + SHAPE_DIM + ORIENTATION_DIM + CROSS_DIM;
 // ponytail: 8 pts × 5 tips; raise PATH_POINTS if a moving letter collides with another
 // Smoothed fingertip travel, in palm widths. Static letters stay below ~1 (tremor),
 // moving letters (J, Z, H, K) go from ~1.7 up, so motion is zeroed below this.
@@ -18,6 +19,9 @@ export const MOTION_MIN_EXTENT = 1.3;
 export const POSE_WEIGHT = 0.5;
 export const SHAPE_WEIGHT = 2;
 export const ORIENTATION_WEIGHT = 2;
+// Index/middle tip offset measured along the index→middle knuckle axis:
+// R (crossed) < 0, U (together) ≈ 0.6, V (spread) > 2. Distances alone lose the sign.
+export const CROSS_WEIGHT = 4;
 const SMOOTH_RADIUS = 4;
 const FINGER_CHAINS = [
   [0, 1, 2, 3, 4],
@@ -148,6 +152,15 @@ function orientationVector(landmarks) {
   return [up[0] / planar, up[1] / planar, normal];
 }
 
+function crossValue(landmarks) {
+  const bx = landmarks[5].x - landmarks[9].x;
+  const by = landmarks[5].y - landmarks[9].y;
+  const tx = landmarks[8].x - landmarks[12].x;
+  const ty = landmarks[8].y - landmarks[12].y;
+  const value = (tx * bx + ty * by) / (bx * bx + by * by + 1e-9);
+  return Math.max(-3, Math.min(4, value));
+}
+
 // Left hands are mirrored so both hands share one set of prototypes.
 function mirrorLeftHand(frames) {
   const left = frames.filter((frame) => frame.handedness === "Left").length;
@@ -170,6 +183,7 @@ export function framesToFeatures(frames) {
     ...motionFeatures(window),
     ...scaled(shape, SHAPE_WEIGHT),
     ...scaled(orientation, ORIENTATION_WEIGHT),
+    meanVector(window.map((frame) => [crossValue(frame.landmarks)]))[0] * CROSS_WEIGHT,
   ];
 }
 

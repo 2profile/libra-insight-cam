@@ -42,9 +42,8 @@ Os arquivos `approved/*-LibraSign-2026-11-23.json` foram convertidos do
 de Heitor Câmara Fernandes (projeto [LibraSign](https://github.com/Heitorccf/librasign)),
 distribuído sob a licença GPL-3.0. Cada CSV de 1000 quadros virou 11 amostras de 90 quadros.
 
-Só entraram as letras A–G, I, L, N–Q, S–W e Y. Ficaram de fora:
+Só entraram as letras A–G, I, L, N–W e Y. Ficaram de fora:
 
 - H, J, K e Z: no conjunto original são poses paradas, sem o movimento da letra.
 - M: quatro dedos dobrados, diferente do M usado aqui (três dedos para baixo).
-- R: lido como U pelo modelo; não deu para confirmar o cruzamento dos dedos.
 - X: letra ainda sem validação neste projeto.
